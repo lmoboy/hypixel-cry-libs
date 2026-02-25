@@ -8,8 +8,6 @@ on:
       - opened
       - reopened
       - synchronize
-    paths:
-      - '**/*.lua'
 
 jobs:
   process-pr:
@@ -35,32 +33,31 @@ jobs:
           git fetch origin ${{ github.base_ref }}
           
           # Get list of all changed files
-          ALL_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD)
+          ALL_FILES=$(git diff --name-only --diff-filter=d origin/${{ github.base_ref }} HEAD)
           
           # Filter for Lua files only
           LUA_FILES=$(echo "$ALL_FILES" | grep '\.lua$' || true)
           
-          # Count files
-          TOTAL_COUNT=$(echo "$ALL_FILES" | grep -c -v '^$' || echo 0)
-          LUA_COUNT=$(echo "$LUA_FILES" | grep -c -v '^$' || echo 0)
+          # Count files using grep -c
+          TOTAL_COUNT=$(echo "$ALL_FILES" | grep -v '^$' | wc -l)
+          LUA_COUNT=$(echo "$LUA_FILES" | grep -v '^$' | wc -l)
 
           echo "Total files changed: $TOTAL_COUNT"
           echo "Lua files changed: $LUA_COUNT"
 
-          # Logic: If any non-lua files exist, or no lua files exist at all
-          if [ "$LUA_COUNT" -eq 0 ]; then
-            gh pr comment ${{ github.event.pull_request.number }} --body "❌ Pull Request rejected: No Lua files detected."
-            gh pr close ${{ github.event.pull_request.number }}
-            exit 1
+          if [ "$TOTAL_COUNT" -eq 0 ]; then
+            echo "No files detected."
+            exit 0
           fi
 
           if [ "$TOTAL_COUNT" -ne "$LUA_COUNT" ]; then
-            gh pr comment ${{ github.event.pull_request.number }} --body "❌ Pull Request rejected: This registry only accepts Lua files. Please remove non-Lua files (e.g., .txt, .js, .exe) and try again."
+            echo "Non-Lua files detected. Closing PR."
+            gh pr comment ${{ github.event.pull_request.number }} --body "❌ Pull Request rejected: This registry only accepts **.lua** files. Please remove other file types and try again."
             gh pr close ${{ github.event.pull_request.number }}
             exit 1
           fi
           
-          echo "Validation passed. Proceeding..."
+          echo "Validation passed. Only Lua files detected."
 
       - name: Install Luacheck & jq
         run: |
@@ -79,11 +76,8 @@ jobs:
           for FILE in $LUA_FILES; do
             if [ ! -f "$FILE" ]; then continue; fi
             
-            # Data Extraction
             FILE_MD5=$(md5sum "$FILE" | awk '{print $1}')
             FILE_NAME=$(basename "$FILE")
-            
-            # Extract metadata from comments
             FILE_VER=$(grep -oP '^--\s*@version\s+\K.*' "$FILE" || echo "alpha-0.1")
             FILE_LOC=$(grep -oP '^--\s*@location\s+\K.*' "$FILE" || echo "/libs/")
 
