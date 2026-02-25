@@ -1,0 +1,81 @@
+name: Auto-Update Library Registry
+
+on:
+  pull_request:
+    paths:
+      - '**/*.lua' # Only trigger if a Lua file is added or changed
+
+jobs:
+  update-registry:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to allow the bot to commit back to the PR
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          # Check out the PR branch specifically so we can push commits back to it
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          # Fetch all history so we can diff against the base branch
+          fetch-depth: 0 
+
+      - name: Install Luacheck & jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luacheck jq
+
+      - name: Process New Libraries and Update JSON
+        run: |
+          # Ensure an empty JSON array exists if the file is missing
+          if [ ! -f "registry.json" ]; then
+            echo "[]" > registry.json
+          fi
+
+          # Get a list of Lua files added or modified in this PR
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep '\.lua$' || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No Lua files modified. Skipping."
+            exit 0
+          fi
+
+          for FILE in $CHANGED_FILES; do
+            # Skip if file was deleted
+            if [ ! -f "$FILE" ]; then continue; fi
+            
+            echo "Processing $FILE..."
+
+            # 1. Lint the file (will fail the Action if warnings/errors exist)
+            luacheck "$FILE" --no-color
+
+            # 2. Calculate MD5
+            FILE_MD5=$(md5sum "$FILE" | awk '{print $1}')
+            
+            # 3. Extract Metadata
+            FILE_NAME=$(basename "$FILE")
+            
+            # Parse the @version comment, default to "1.0" if missing
+            FILE_VER=$(grep -oP '^--\s*@version\s+\K.*' "$FILE" || echo "1.0")
+            
+            # Parse the @location comment, default to the file's directory if missing
+            FILE_LOC=$(grep -oP '^--\s*@location\s+\K.*' "$FILE" || dirname "/$FILE/")
+
+            echo "Name: $FILE_NAME | MD5: $FILE_MD5 | Ver: $FILE_VER | Loc: $FILE_LOC"
+
+            # 4. Update registry.json using jq
+            # This looks for an existing entry with the same name, removes it, and appends the new one
+            jq --arg name "$FILE_NAME" \
+               --arg md5 "$FILE_MD5" \
+               --arg loc "$FILE_LOC" \
+               --arg ver "$FILE_VER" \
+               'map(select(.name != $name)) + [{name: $name, md5: $md5, location: $loc, ver: $ver}]' \
+               registry.json > tmp.json && mv tmp.json registry.json
+          done
+
+      - name: Commit Updated Registry back to PR
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-update registry.json with new library hashes"
+          file_pattern: "registry.json"
