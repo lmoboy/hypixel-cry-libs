@@ -33,22 +33,16 @@ jobs:
         id: validate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
-          # Fetch base branch to compare
           git fetch origin ${{ github.base_ref }}
           
-          # Get list of all changed files
           ALL_FILES=$(git diff --name-only --diff-filter=d origin/${{ github.base_ref }} HEAD)
-          
-          # Filter for Lua files only
           LUA_FILES=$(echo "$ALL_FILES" | grep '\.lua$' || true)
-          
-          # Count files using grep -c
           TOTAL_COUNT=$(echo "$ALL_FILES" | grep -v '^$' | wc -l)
           LUA_COUNT=$(echo "$LUA_FILES" | grep -v '^$' | wc -l)
 
-          echo "Total files changed: $TOTAL_COUNT"
-          echo "Lua files changed: $LUA_COUNT"
+          echo "Total files: $TOTAL_COUNT | Lua files: $LUA_COUNT"
 
           if [ "$TOTAL_COUNT" -eq 0 ]; then
             echo "No files detected."
@@ -56,9 +50,13 @@ jobs:
           fi
 
           if [ "$TOTAL_COUNT" -ne "$LUA_COUNT" ]; then
-            echo "Non-Lua files detected. Closing PR."
-            gh pr comment ${{ github.event.pull_request.number }} --body "❌ Pull Request rejected: This registry only accepts **.lua** files. Please remove other file types and try again."
-            gh pr close ${{ github.event.pull_request.number }}
+            echo "Non-Lua files detected. Attempting to close PR #${{ github.event.pull_request.number }}..."
+            
+            gh pr comment ${{ github.event.pull_request.number }} \
+               --repo "$REPO" \
+               --body "❌ PR Rejected: You included $TOTAL_COUNT files, but only $LUA_COUNT were .lua files. Please only submit Lua files."
+            
+            gh pr close ${{ github.event.pull_request.number }} --repo "$REPO"
             exit 1
           fi
           
