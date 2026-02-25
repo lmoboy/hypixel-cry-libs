@@ -1,3 +1,7 @@
+-- @version 1.0.0
+-- @location /libs/ 
+
+
 local utils = require("smarrtieUtils")
 
 local SmoothRotation = {}
