@@ -6,6 +6,12 @@
     "ver": "1.0.0"
   },
   {
+    "name": "rotations_v2.lua",
+    "md5": "1f543dca497f5b5438a40b16ef39806b",
+    "location": "/libs/",
+    "ver": "1.0"
+  },
+  {
     "name": "rotations_v3.lua",
     "md5": "81237d2eb4817ceeea51c2a10752543c",
     "location": "/libs/ ",
