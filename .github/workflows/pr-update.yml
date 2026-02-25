@@ -30,9 +30,9 @@ jobs:
 
       - name: Install Luacheck & jq
         run: |
-          sudo apt-get update
-          sudo apt-get install -y luacheck jq
-
+            sudo apt-get update
+            sudo apt-get install -y lua5.4 luarocks jq
+            sudo luarocks install luacheck
       - name: Process New Libraries and Update JSON
         run: |
           # Ensure registry.json exists
