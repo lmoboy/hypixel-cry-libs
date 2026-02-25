@@ -28,5 +28,35 @@
     "md5": "5319eb51491935afc6406bbbab91024a",
     "location": "/libs/",
     "ver": "beta-0.1"
+  },
+  {
+    "name": "aotvUtils.lua",
+    "md5": "9f76d44325ddcbafe97f0e0a2c945c9f",
+    "location": "/libs/",
+    "ver": "1.0"
+  },
+  {
+    "name": "downloadFile.lua",
+    "md5": "4296ca760b155ccce1c75d1929ceca92",
+    "location": "/libs/",
+    "ver": "1.0"
+  },
+  {
+    "name": "files.lua",
+    "md5": "4daae568aaa444a1529b75562563da50",
+    "location": "/libs/",
+    "ver": "1.0"
+  },
+  {
+    "name": "index.lua",
+    "md5": "353de8cda47cbf8fd54af3ccb56fe16c",
+    "location": "/CryVigilance/",
+    "ver": "1.0"
+  },
+  {
+    "name": "inventory_utils.lua",
+    "md5": "111f6e43b7037628b58a46d0a6f3c9a5",
+    "location": "/libs/",
+    "ver": "alpha-0.1"
   }
 ]
