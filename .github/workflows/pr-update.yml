@@ -33,22 +33,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
-          # Fetch your main branch so diff has something to compare against
           git fetch origin ${{ github.base_ref }}
           
-          ALL_FILES=$(git diff --name-only --diff-filter=d origin/${{ github.base_ref }} HEAD)
+          ALL_FILES=$(git diff --name-only --diff-filter=d origin/${{ github.base_ref }} HEAD | grep -v 'registry.json' || true)
           LUA_FILES=$(echo "$ALL_FILES" | grep '\.lua$' || true)
           TOTAL_COUNT=$(echo "$ALL_FILES" | grep -v '^$' | wc -l || echo 0)
           LUA_COUNT=$(echo "$LUA_FILES" | grep -v '^$' | wc -l || echo 0)
 
+          echo "Total files (excluding registry): $TOTAL_COUNT | Lua files: $LUA_COUNT"
+
+          if [ "$TOTAL_COUNT" -eq 0 ]; then
+            echo "No new Lua files to process. Exiting gracefully."
+            exit 0
+          fi
+
           if [ "$TOTAL_COUNT" -ne "$LUA_COUNT" ]; then
+            echo "Non-Lua files detected. Attempting to close PR..."
+            
             gh pr comment ${{ github.event.pull_request.number }} \
                --repo "$REPO" \
-               --body "❌ PR Rejected: Only .lua files are allowed. Found non-lua files in your submission."
+               --body "❌ **PR Rejected**: Only `.lua` files are permitted. Please remove any other file types (e.g. .txt, .zip) and try again."
             
             gh pr close ${{ github.event.pull_request.number }} --repo "$REPO"
             exit 1
           fi
+          
+          echo "Validation passed. Only Lua files (and registry.json) detected."
 
       - name: Install Luacheck & jq
         run: |
