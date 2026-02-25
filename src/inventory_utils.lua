@@ -1,3 +1,6 @@
+-- @version 1.0
+-- @location /libs/
+
 local inventory = {}
 
 function inventory.getItemInHotbar(id)
