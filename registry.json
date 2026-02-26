@@ -58,5 +58,11 @@
     "md5": "111f6e43b7037628b58a46d0a6f3c9a5",
     "location": "/libs/",
     "ver": "alpha-0.1"
+  },
+  {
+    "name": "printColor.lua",
+    "md5": "758f82907eab0105988060e5cf0dedb5",
+    "location": "/libs/",
+    "ver": "1.1.0"
   }
 ]
