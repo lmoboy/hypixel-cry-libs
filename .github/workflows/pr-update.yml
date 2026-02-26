@@ -89,9 +89,10 @@ jobs:
         with:
           commit_message: "chore: auto-update registry"
           file_pattern: "registry.json"
-          # Since we are on pull_request_target, we must push to the contributor's fork
-          branch: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
+          # branch: ${{ github.event.pull_request.head.ref }}
+          # repository: ${{ github.event.pull_request.head.repo.full_name }}
 
       - name: Approve and Merge PR
         env:
