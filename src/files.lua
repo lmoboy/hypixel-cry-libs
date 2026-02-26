@@ -1,6 +1,8 @@
 -- @version 1.0
 -- @location /libs/
 
+-- This allows you to read and write files to the file system. Note that malicious actions can be taken with this library, use with caution.
+
 local File = luajava.bindClass("java.io.File")
 local Files = luajava.bindClass("java.nio.file.Files")
 local Array = luajava.bindClass("java.lang.reflect.Array")
