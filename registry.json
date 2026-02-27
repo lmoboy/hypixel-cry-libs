@@ -7,18 +7,6 @@
       "ver": "1.0"
     },
     {
-      "name": "pathfinder_core.lua",
-      "md5": "fa1656f8b5fc862ca8816144d149b8ff",
-      "location": "/libs/",
-      "ver": "beta-0.1"
-    },
-    {
-      "name": "pathwalker.lua",
-      "md5": "5319eb51491935afc6406bbbab91024a",
-      "location": "/libs/",
-      "ver": "beta-0.1"
-    },
-    {
       "name": "aotvUtils.lua",
       "md5": "9f76d44325ddcbafe97f0e0a2c945c9f",
       "location": "/libs/",
@@ -71,6 +59,18 @@
       "md5": "de306e0468ab4151ed8eb1d2f0a74a1b",
       "location": "/libs/ ",
       "ver": "1.0.0-final"
+    },
+    {
+      "name": "pathfinder_core.lua",
+      "md5": "86fa38f02c810d7b1adb8138d90e7d62",
+      "location": "/libs/",
+      "ver": "beta-0.2"
+    },
+    {
+      "name": "pathwalker.lua",
+      "md5": "c103fc75042e2b2c63b88189960de943",
+      "location": "/libs/",
+      "ver": "beta-0.2"
     }
   ]
 }
