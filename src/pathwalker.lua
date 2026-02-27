@@ -1,4 +1,4 @@
--- @version beta-0.1
+-- @version beta-0.2
 -- @location /libs/
 
 --#region
@@ -13,16 +13,17 @@ local aim = require("rotations_v3")
 local Walker = {}
 
 Walker.active = false -- global for example purposes, doesn't really do anythin
+Walker.lookAhead = 3
 local waypoints = {}
 local currentIndex = 1
 
-local stopDist = 0.35
-local sprintEnabled = true
+Walker.stopDist = 0.35
+Walker.sprintEnabled = true
 
-local forwardThreshold = 0.1 -- the higher the less it will compensate, setting it too low is also bad so yk
-local lateralThreshold = 0.1 -- same as ^^ 
+Walker.forwardThreshold = 0.1 -- the higher the less it will compensate, setting it too low is also bad so yk
+Walker.lateralThreshold = 0.1 -- same as ^^ 
 
-local jumpRayDistance = 1.5 -- really should be doing more than just raycasting but it's enough it's whatever
+Walker.jumpRayDistance = 0.9 -- really should be doing more than just raycasting but it's enough it's whatever
 
 local function clearInputs()
     player.input.setPressedForward(false)
@@ -49,14 +50,14 @@ end
 
 local function needsJump(dirX, dirZ)
     local pos = player.getPos()
-    local eyeY = pos.y + 0.6   -- just above step height
+    local footY = pos.y + 0.6   -- just above step height
 
     local endX = pos.x + dirX * jumpRayDistance
     local endZ = pos.z + dirZ * jumpRayDistance
 
     local result = world.raycast{
-        startX = pos.x, startY = eyeY, startZ = pos.z,
-        endX   = endX,   endY   = eyeY, endZ   = endZ
+        startX = pos.x, startY = footY, startZ = pos.z,
+        endX   = endX,   endY   = footY, endZ   = endZ
     }
 
     if result and result.type == "block" then
@@ -92,9 +93,9 @@ function Walker.followPath(path, opts)
     end
     currentIndex = 1
 
-    stopDist = opts.stopDist or 0.35
-    sprintEnabled = (opts.sprint == nil) and true or opts.sprint
-    jumpRayDistance = opts.jumpRayDistance or 1.5
+    Walker.stopDist = opts.stopDist or 0.35
+    Walker.sprintEnabled = (opts.sprint == nil) and true or opts.sprint
+    Walker.jumpRayDistance = opts.jumpRayDistance or 1.5
 
     Walker.active = true
 end
@@ -136,7 +137,7 @@ registerClientTick(function()
 
     local horizontalDist = math.sqrt(dx*dx + dz*dz)
 
-    if horizontalDist <= stopDist and math.abs(dy) < 0.6 then
+    if horizontalDist <= Walker.stopDist and math.abs(dy) < 0.6 then
         currentIndex = currentIndex + 1
         if currentIndex > #waypoints then
             Walker.active = false
@@ -164,35 +165,40 @@ registerClientTick(function()
     local forwardComp = dirX * forwardX + dirZ * forwardZ
     local rightComp   = dirX * rightX   + dirZ * rightZ
 
-    pressForward = (forwardComp > forwardThreshold)
-    pressBack    = (forwardComp < -forwardThreshold)
-    pressLeft    = (rightComp > lateralThreshold)
-    pressRight   = (rightComp < -lateralThreshold)
+    pressForward = (forwardComp > Walker.forwardThreshold)
+    pressBack    = (forwardComp < -Walker.forwardThreshold)
+    pressLeft    = (rightComp > Walker.lateralThreshold)
+    pressRight   = (rightComp < -Walker.lateralThreshold)
 
     player.input.setPressedForward(pressForward)
     player.input.setPressedBack(pressBack)
     player.input.setPressedRight(pressRight)
     player.input.setPressedLeft(pressLeft)
 
-    if sprintEnabled then
+    if Walker.sprintEnabled then
         player.input.setPressedSprinting(forwardComp > 0.8 and horizontalDist > 1.5)
     else
         player.input.setPressedSprinting(false)
     end
 
-    if pressForward and needsJump(dirX, dirZ) and (dy >= 1 or dy == -1) then
+    if needsJump(dirX, dirZ) and dy >= 1 then
         player.input.setPressedJump(true)
     else
         player.input.setPressedJump(false)
     end
 end)
+aim.setModifier(2) -- literally 
 
 register2DRenderer(function ()
-    aim.setModifier(4)
-    aim.update()
-    local lookat = waypoints[currentIndex + 2]
-    if not lookat and currentIndex == #waypoints then lookat = waypoints[currentIndex] end
-    aim.rotateToCoordinates(lookat.x+0.5, lookat.y+1.6, lookat.z+0.5)
+    if Walker.active then
+        aim.update()
+        local lookat = waypoints[currentIndex + Walker.lookAhead]
+        if currentIndex + Walker.lookAhead <= 1 then lookat = 1 end
+        if not lookat and currentIndex >= #waypoints then
+            lookat = waypoints[currentIndex]
+        end
+        aim.rotateToCoordinates(lookat.x+0.5, lookat.y+1.6, lookat.z+0.5)
+    end
 end)
 
 

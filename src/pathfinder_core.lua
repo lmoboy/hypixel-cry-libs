@@ -1,4 +1,4 @@
--- @version beta-0.1
+-- @version beta-0.2
 -- @location /libs/
 
 local Core = {}
@@ -18,7 +18,7 @@ end
 Core.maxNodes = 8000
 
 Core.jumpHeight = 1
-
+Core.smoothPath = true
 Core.fallDepth = 10
 Core.debugCapture = false
 Core._debugExpanded = {}
@@ -60,7 +60,7 @@ local function isWalkable(bx, by, bz)
     local gnd  = world.getBlock(bx, by - 1, bz)
     local foot = world.getBlock(bx, by,     bz)
     local head = world.getBlock(bx, by + 1, bz)
-    local hair = world.getBlock(bx, by + 2, bz) -- i was too lazy to fix the issue where it wouldn't know that a diagonal descend is not possible
+    local hair = world.getBlock(bx, by + 2, bz) -- i was too lazy to fix the issue where it wouldn't know that a diagonal a/descend is not possible
 
     if not gnd or not gnd.is_solid or gnd.is_liquid then return false end
     if gnd.box and gnd.box.getYSize() > 1.0 then return false end
@@ -308,8 +308,11 @@ local function astarSearch(start, goal)
         expansions = expansions + 1
         if expansions > Core.maxNodes then
             local partial = reconstructPath(came, bestNode)
-            return smoothPath(partial), "node limit (" .. Core.maxNodes .. ") — partial path returned"
-            -- return partial, "node limit (" .. Core.maxNodes .. ") — partial path returned"
+            if Core.smoothPath then
+                return smoothPath(partial), "node limit (" .. Core.maxNodes .. ") — partial path returned"
+            else
+                return partial, "node limit (" .. Core.maxNodes .. ") — partial path returned"
+            end
         end
 
         local cur = open:pop()
@@ -335,8 +338,11 @@ local function astarSearch(start, goal)
             if not (last.x == goal.x and last.y == goal.y and last.z == goal.z) then
                 raw[#raw + 1] = { x = goal.x, y = goal.y, z = goal.z }
             end
-            return smoothPath(raw), nil
-            -- return raw, nil
+            if Core.smoothPath then
+                return smoothPath(raw), nil
+            else
+                return raw, nil
+            end
         end
 
         local verticalDirs = { { 0, 0, 1 }, { 0, 0, -1 } } -- dx, dz, dy
@@ -414,8 +420,11 @@ local function astarSearch(start, goal)
         return nil, "no path found"
     end
     local partial = reconstructPath(came, bestNode)
-    return smoothPath(partial), "no path found — partial path returned"
-    -- return partial, "no path found — partial path returned"
+    if Core.smoothPath then
+        return smoothPath(partial), "no path found — partial path returned"
+    else
+        return partial, "no path found — partial path returned"
+    end
 end
 
 function Core.snapPos(pos)
