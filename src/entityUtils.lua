@@ -1,4 +1,4 @@
--- @version 0.1
+-- @version 0.1.2
 -- @location /libs/
 -- author: smarrtie
 
@@ -61,12 +61,8 @@ function entityUtils.getClosestLivingEntity()
     return closest
 end
 
-function entityUtils.getClosestHitbox(entity)
-    if not entity or not entity.box then
-        return nil
-    end
-
-    local box = entity.box
+local function getBoxRays(box, type)
+    -- local box = boxP.deflate(0.1,0.1,0.1)
     local eyePos = player.getEyePosition()
     local steps = entityUtils.steps
     if not eyePos then return nil end
@@ -89,14 +85,20 @@ function entityUtils.getClosestHitbox(entity)
                     startZ = eyePos.z,
                     endX = px,
                     endY = py,
+                    endZ = pz,
+                    include_entity = (type == "entity"), -- for some fucking reason if you include entities it forgets to return the first ray 
+                })
+                local testRay = world.raycast({ -- so we do some of double checking which effectively doubles our raycount and giving performance of a potato
+                    startX = eyePos.x,
+                    startY = eyePos.y,
+                    startZ = eyePos.z,
+                    endX = px,
+                    endY = py,
                     endZ = pz
                 })
-
                 local isVisible = false
                 if ray ~= nil then
-                    if ray.type == "entity" then
-                        isVisible = true
-                    elseif ray.type == "miss" then
+                    if ray.type == type and testRay.type == "miss"  then
                         isVisible = true
                     end
                 end
@@ -113,7 +115,16 @@ function entityUtils.getClosestHitbox(entity)
             end
         end
     end
-    -- player.addMessage(closestPoint.x)
+    return closestPoint
+end
+
+function entityUtils.getClosestHitbox(entity)
+    if not entity or not entity.box then
+        return nil
+    end
+
+    local box = entity.box
+    local closestPoint = getBoxRays(box,"entity")
     return closestPoint
 end
 
