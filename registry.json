@@ -71,6 +71,12 @@
       "md5": "f32a3e12e79dcef59002cb53c6c52b0c",
       "location": "/libs/",
       "ver": "beta-0.3"
+    },
+    {
+      "name": "entityUtils.lua",
+      "md5": "e9292946d23cfd007a42cfc3bf79f4c3",
+      "location": "/libs/",
+      "ver": "0.1"
     }
   ]
 }
