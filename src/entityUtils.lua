@@ -3,7 +3,7 @@
 -- author: smarrtie
 
 local entityUtils = {}
-entityUtils.reach = 0 -- this one for later useage when i update the lib
+entityUtils.reach = 3.5 -- this one for later useage when i update the lib
 entityUtils.closest = nil -- you can set this closest global instead of declaring a new variable
 entityUtils.steps = 5 -- increasing this WILL make it look for more points BUT it comes at a price of performance, 3 is enough 4 is good 5 is preferred
 entityUtils.filter = { [player.entity] = true } -- keyed map to filder entities out (for example bots or npcs)
@@ -26,6 +26,17 @@ function entityUtils.removeFromFilter(entity)
     if entity then
         entityUtils.filter[entity] = false
     end
+end
+
+function entityUtils.getEntitiesByName(name)
+    local entities = world.getEntities()
+    local scanResult = {}
+    for _, entity in pairs(entities) do
+        local eName = string.lower(entity.display_name)
+        local cName = string.lower(name)
+        if string.match(eName, cName) then table.insert(scanResult, entity) end
+    end
+    return scanResult
 end
 
 function entityUtils.getClosestEntity()
@@ -86,7 +97,7 @@ local function getBoxRays(box, type)
                     endX = px,
                     endY = py,
                     endZ = pz,
-                    include_entity = (type == "entity"), -- for some fucking reason if you include entities it forgets to return the first ray 
+                    include_entity = (type == "entity"), -- for some fucking reason if you include entities it forgets to return the first ray result
                 })
                 local testRay = world.raycast({ -- so we do some of double checking which effectively doubles our raycount and giving performance of a potato
                     startX = eyePos.x,
