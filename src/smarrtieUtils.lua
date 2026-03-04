@@ -1,7 +1,7 @@
 -- @version 1.0.1
 -- @location /libs/
 
-local utils = {}
+local time = {}
 
 local lastTick = os.clock()
 local deltaTime = 0
@@ -17,25 +17,20 @@ registerWorldRenderer(function()
     lastTick = currentTick
 end)
 
-function utils.getDistance(pos1, pos2)
-    print(string.format("Distance between (%d, %d, %d) and (%d, %d, %d)", pos1.x, pos1.y, pos1.z, pos2.x, pos2.y, pos2.z))
-    return math.sqrt((pos1.x - pos2.x)^2 + (pos1.y - pos2.y)^2 + (pos1.z - pos2.z)^2)
-end
-
-function utils.deltaTime()
+function time.deltaTime()
     return deltaTime
 end
 
-function utils.tickCount()
+function time.tickCount()
     return tickCount
 end
 
-function utils.timestampToDate(stamp)
+function time.timestampToDate(stamp)
     stamp = math.floor(stamp/1000)
     return os.date("%Y-%m-%d %H:%M:%S", stamp)
 end
 
-function utils.getFPS()
+function time.getFPS()
     if deltaTime > 0 then
         return math.ceil(1 / deltaTime)
     end
@@ -43,4 +38,4 @@ function utils.getFPS()
 end
 
 
-return utils
+return time

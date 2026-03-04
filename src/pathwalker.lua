@@ -3,13 +3,11 @@
 
 local aim = require("rotations_v3")
 local pathfinder_core = require("pathfinder_core")
-local smarrtieUtils   = require("smarrtieUtils")
 
 local Walker = {}
 
-Walker.active = false
+Walker.active = false 
 Walker.lookAhead = 1
-Walker.lookAtPath = true
 local waypoints = {}
 local currentIndex = 1
 
@@ -66,34 +64,6 @@ local function needsJump(dirX, dirZ)
     return false
 end
 
-local function insertNewPoint(ms, waypoint)
-    local isNew = true
-    for _, wp in pairs(waypoints) do
-        -- player.addMessage("Checking waypoint: " .. wp.x .. ", " .. wp.y .. ", " .. wp.z)
-        if
-            wp.x == waypoint.x and
-            wp.y == waypoint.y and
-            wp.z == waypoint.z
-            -- smarrtieUtils.getDistance({wp.x, wp.y, wp.z}, {waypoint.x, waypoint.y, waypoint.z}) < 0.1
-            then
-            isNew = false
-            break
-        end
-    end
-    if isNew then table.insert(ms, {x = waypoint.x, y = waypoint.y, z = waypoint.z}) end
-end
-
-local function getClosestIndex()
-    local closest = 1
-    for index,wp in ipairs(waypoints) do
-        if smarrtieUtils.getDistance(wp, player.getPos()) <
-            smarrtieUtils.getDistance(waypoints[closest], player.getPos()) then
-            closest = math.min(closest + 1, #waypoints)
-        end
-    end
-    return closest -- favour the next node instead of walking back if possible
-end
-
 function Walker.followPath(path, opts)
     if not path or #path == 0 then
         return
@@ -102,11 +72,9 @@ function Walker.followPath(path, opts)
 
     waypoints = {}
     for _, wp in ipairs(path) do
-        -- table.insert(waypoints, { x = wp.x, y = wp.y, z = wp.z })
-        insertNewPoint(waypoints, wp)
+        table.insert(waypoints, { x = wp.x, y = wp.y, z = wp.z })
     end
-
-    currentIndex = getClosestIndex()
+    currentIndex = 1
 
     Walker.stopDist = opts.stopDist or 0.4
     Walker.sprintEnabled = (opts.sprint == nil) and true or opts.sprint
@@ -121,8 +89,6 @@ function Walker.cancel()
     waypoints = {}
     currentIndex = 1
 end
-
-
 
 function Walker.walkToBlock(x, y, z, opts)
     Walker.followPath({ {x = x, y = y, z = z} }, opts)
@@ -232,7 +198,7 @@ end)
 aim.setModifier(3)
 
 register2DRenderer(function ()
-    if Walker.active and Walker.lookAtPath then
+    if Walker.active then
         aim.update()
         
         local lookIndex = math.min(currentIndex + Walker.lookAhead, #waypoints)
