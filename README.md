@@ -59,6 +59,7 @@ Our automated system manages all Pull Requests. Please be aware of the following
 2. **Commit:** Commit your changes (`git commit -m "Add my-library.lua"`).
 3. **Push:** Push to your fork or branch.
 4. **Pull Request:** Open a PR against the `main` branch.
+5. **Pull from origin** after you open the pr and it gets approved pull from origin to exclude merge conflicts.
 
 **In case the pr doesn't auto approve due to anything other than wrong files contact smarrtie in discord**
 
