@@ -7,6 +7,7 @@ local scripts = {}
 rotations.setRotationSpeed(16)
 
 scripts.slotVacuum = 1
+scripts.flyY = 73
 local aimFov = 70          -- Угол FOV, в котором наводка отключается
 local aimOffsetSpread = 20  -- Максимальное смещение в градусах (например, +/- 2 градуса)
 local currentState = "Stop"
@@ -170,7 +171,7 @@ registerClientTickPost(function()
   end
 
   if currentState == "Up" then
-    if pos.y <= 73 then
+    if pos and pos.y <= scripts.flyY then
       if onGround and not wasOnGround then
         tick = 1
       end
