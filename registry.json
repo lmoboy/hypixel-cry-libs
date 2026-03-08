@@ -19,12 +19,6 @@
       "ver": "1.0"
     },
     {
-      "name": "index.lua",
-      "md5": "353de8cda47cbf8fd54af3ccb56fe16c",
-      "location": "/CryVigilance/",
-      "ver": "1.0"
-    },
-    {
       "name": "inventory_utils.lua",
       "md5": "111f6e43b7037628b58a46d0a6f3c9a5",
       "location": "/libs/",
@@ -107,6 +101,12 @@
       "md5": "45b99f03e1ba08bbf4c3e8ebd6bc65ea",
       "location": "/libs/",
       "ver": "1.0"
+    },
+    {
+      "name": "index.lua",
+      "md5": "1a776f964e4b4fbaec454468a8d373bf",
+      "location": "/CryVigilance/",
+      "ver": "1.1"
     }
   ]
 }
