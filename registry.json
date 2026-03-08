@@ -91,20 +91,20 @@
       "ver": "1.0"
     },
     {
-      "name": "goonPestFly.lua",
-      "md5": "7324fef5bd0ca943dc7ce4b0e5fd0171",
-      "location": "/libs/\r",
-      "ver": "1.0\r"
-    },
-    {
       "name": "goonUi.lua",
       "md5": "5982ec7a014e381f4aa9539273f17241",
       "location": "/libs/",
       "ver": "1.0"
     },
     {
+      "name": "goonPestFly.lua",
+      "md5": "48a789223e44cc4f4baaab5387b36ad5",
+      "location": "/libs/\r",
+      "ver": "1.0\r"
+    },
+    {
       "name": "goonUtils.lua",
-      "md5": "8105c09c880544aafd5593d40901977f",
+      "md5": "45b99f03e1ba08bbf4c3e8ebd6bc65ea",
       "location": "/libs/",
       "ver": "1.0"
     }
