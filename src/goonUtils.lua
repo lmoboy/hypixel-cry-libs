@@ -415,23 +415,18 @@ end
 
 --------------------------------------------------------------------------------
 
-local function _playerInputStopAll(player)
+function all.playerInputStopAll()
   player.input.setPressedForward(false)
   player.input.setPressedBack(false)
   player.input.setPressedLeft(false)
   player.input.setPressedRight(false)
+
   player.input.setPressedJump(false)
-  player.input.setPressedSprint(false)
+  player.input.setPressedSprinting(false)
   player.input.setPressedSneak(false)
+
   player.input.setPressedAttack(false)
   player.input.setPressedUse(false)
-  if all.inf.velocity < 0.5 then
-    all.dump.playerInputStopAllValue = false
-    player.addMessage("stopped")
-  end
-end
-function all.playerInputStopAll()
-  all.dump.playerInputStopAllValue = true
 end
 
 --------------------------------------------------------------------------------
