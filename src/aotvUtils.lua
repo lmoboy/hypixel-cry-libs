@@ -1,4 +1,4 @@
--- @version 1.0
+-- @version 1.1
 -- @location /libs/
 
 local rotations = require("libs/rotations_v3")
@@ -61,6 +61,8 @@ registerClientTick(function()
             return
         end
 
+        -- Start sneaking
+        player.input.setPressedSneak(true)
         -- Swap item
         player.input.setSelectedSlot(math.floor(aotvSlot))
         
@@ -81,22 +83,22 @@ registerClientTick(function()
         
         -- Transition if rotation is done OR timeout reached
         if (not rotations.isRotating() and aotvUtils.rotateTimeRemaining <= 0) or aotvUtils.rotateTimeRemaining < -40 then
-            aotvUtils.state = "SNEAKING"
-            player.input.setPressedSneak(true)
-            aotvUtils.timer = 3 
-        end
-    elseif aotvUtils.state == "SNEAKING" then
-        aotvUtils.timer = aotvUtils.timer - 1
-        if aotvUtils.timer <= 0 then
             aotvUtils.state = "WAITING_CLICK"
-            aotvUtils.timer = aotvUtils.clickDelayRemaining
+            -- player.input.setPressedSneak(true)
+            aotvUtils.timer = 3
         end
+    -- elseif aotvUtils.state == "SNEAKING" then
+    --     aotvUtils.timer = aotvUtils.timer - 1
+    --     if aotvUtils.timer <= 0 then
+    --         aotvUtils.state = "WAITING_CLICK"
+    --         aotvUtils.timer = aotvUtils.clickDelayRemaining
+    --     end
     elseif aotvUtils.state == "WAITING_CLICK" then
         aotvUtils.timer = aotvUtils.timer - 1
         if aotvUtils.timer <= 0 then
             player.input.rightClick()
             aotvUtils.state = "CLEANUP"
-            aotvUtils.timer = 5 
+            aotvUtils.timer = 5
         end
     elseif aotvUtils.state == "CLEANUP" then
         aotvUtils.timer = aotvUtils.timer - 1
