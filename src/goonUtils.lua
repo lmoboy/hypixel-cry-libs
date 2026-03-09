@@ -1,4 +1,4 @@
--- @version 1.1
+-- @version 1.2
 -- @location /libs/
 
 local idk = "idk"
@@ -24,6 +24,7 @@ local regexes = {
 ---@field velocity number
 ---@field blockBelowFeet string
 ---@field rain number
+---@field comms table | nil
 
 ---@class All
 ---@field inf inf
@@ -38,7 +39,8 @@ local all = {
     pos = idkPos,
     velocity = idkInt,
     blockBelowFeet = idk,
-    rain = idkInt
+    rain = idkInt,
+    comms = nil
   },
   tgl = {
     location = false,
@@ -49,7 +51,8 @@ local all = {
     pos = false,
     velocity = false,
     blockBelowFeet = false,
-    rain = false
+    rain = false,
+    comms = false
   },
   clr = {
     reset = "§r",
@@ -336,9 +339,10 @@ end
 
 local function getTabInfo()
 
-  local tabBody = (player.getTab()).body
+  local tabBody = player.getTab()
   if not tabBody then return end
-  for _, lineRaw in ipairs(tabBody) do
+  if tabBody.body then tabBody = tabBody.body end
+  for i, lineRaw in ipairs(tabBody) do
 
     local line = all.remMcColors(lineRaw)
 
@@ -367,6 +371,27 @@ local function getTabInfo()
       _getTabInfo("rainRaw", line, "Rain: (.*)", nil, false, true)
       if all.dump.rainRaw then
         all.inf.rain = _handleTimeNumbers(all.dump.rainRaw)
+      end
+    end
+
+    -- dwarves
+    if all.tgl.comms then
+      if line:find("Commissions:", 1, true) then
+        all.inf.comms = {}
+        for j = 1, 4 do
+          local nextLineRaw = tabBody[i + j]
+
+          if nextLineRaw then
+            nextLineRaw = all.remMcColors(nextLineRaw):lower()
+
+            if nextLineRaw:find("done") then
+              table.insert(all.inf.comms, "done")
+            else
+              table.insert(all.inf.comms, (nextLineRaw:gsub(": %d+%%", "")))
+            end
+
+          end
+        end
       end
     end
 
