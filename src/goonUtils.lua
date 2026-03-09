@@ -384,7 +384,7 @@ local function _getBlockBelowFeet()
   if type(all.inf.pos) ~= "table" then return end
   local blk = world.getBlock(all.inf.pos.x-1.0,all.inf.pos.y - 0.5,all.inf.pos.z)
   if blk then blk = blk.name else return nil end
-  local ret = blk:match("block%.minecraft.(.*)")
+  local ret = blk:match("block%.minecraft%.(.*)")
   return ret
 end
 
