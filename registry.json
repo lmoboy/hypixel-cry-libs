@@ -7,12 +7,6 @@
       "ver": "1.0"
     },
     {
-      "name": "aotvUtils.lua",
-      "md5": "9f76d44325ddcbafe97f0e0a2c945c9f",
-      "location": "/libs/",
-      "ver": "1.0"
-    },
-    {
       "name": "downloadFile.lua",
       "md5": "4296ca760b155ccce1c75d1929ceca92",
       "location": "/libs/",
@@ -107,6 +101,12 @@
       "md5": "c0c177726a86a2fbba13e06d95456e69",
       "location": "/libs/",
       "ver": "1.2"
+    },
+    {
+      "name": "aotvUtils.lua",
+      "md5": "def58bc429aa9fbe9caecb3f3d15fc84",
+      "location": "/libs/",
+      "ver": "1.1"
     }
   ]
 }
