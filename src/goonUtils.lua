@@ -380,10 +380,9 @@ end
 --------------------------------------------------------------------------------
 
 ---@return string | nil
-local function _getBlockBelowFeet(world)
+local function _getBlockBelowFeet()
   if type(all.inf.pos) ~= "table" then return end
-  local x, y, z = all.inf.pos.x, all.inf.pos.y, all.inf.pos.z
-  local blk = world.getBlock(x-1,y-1,z-0.5)
+  local blk = world.getBlock(all.inf.pos.x-1.0,all.inf.pos.y - 0.5,all.inf.pos.z)
   if blk then blk = blk.name else return nil end
   local ret = blk:match("block%.minecraft.(.*)")
   return ret
@@ -507,7 +506,7 @@ registerClientTickPost(function()
   end
 
   if all.tgl.blockBelowFeet then
-    all.inf.blockBelowFeet = _getBlockBelowFeet(world) or idk
+    all.inf.blockBelowFeet = _getBlockBelowFeet() or idk
   end
 
   -- if all.dump.playerInputStopAllValue == true then
