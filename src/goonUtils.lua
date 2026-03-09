@@ -116,6 +116,16 @@ end
 
 --------------------------------------------------------------------------------
 
+---@param num1 number
+---@param num2 number
+---@param tolerance number
+---@return boolean
+function all.isNumCloseTo(num1, num2, tolerance)
+  return math.abs(num1 - num2) < tolerance
+end
+
+--------------------------------------------------------------------------------
+
 ---@param table table
 ---@return string
 function all.tableToString(table)
