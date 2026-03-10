@@ -1,6 +1,8 @@
 -- @version 1.2
 -- @location /libs/
 
+local iut = require("inventory_utils")
+
 local idk = "idk"
 local idkInt = -1
 local idkPos = { x = -1, y = -1, z = -1 }
@@ -25,6 +27,7 @@ local regexes = {
 ---@field blockBelowFeet string
 ---@field rain number
 ---@field comms table | nil
+---@field heldItem any | nil
 
 ---@class All
 ---@field inf inf
@@ -40,7 +43,8 @@ local all = {
     velocity = idkInt,
     blockBelowFeet = idk,
     rain = idkInt,
-    comms = nil
+    comms = nil,
+    heldItem = nil
   },
   tgl = {
     location = false,
@@ -52,7 +56,8 @@ local all = {
     velocity = false,
     blockBelowFeet = false,
     rain = false,
-    comms = false
+    comms = false,
+    heldItem = false
   },
   clr = {
     reset = "§r",
@@ -82,6 +87,7 @@ local all = {
   dump = {},
   tmp = {},
   _cds = {},
+  gdrs = {},
   _wtr = {}
 }
 
@@ -119,12 +125,68 @@ end
 
 --------------------------------------------------------------------------------
 
+--- @return any | nil
+function all.getHeldItem()
+  local test = player.input.getSelectedSlot()
+  if test or test > -1 and test < 9 then
+    local heldItem = player.inventory.getStack(test)
+    return heldItem
+  end
+  return nil
+end
+
+-- default uidType is display_name
+--- @return boolean
+function all.holdItem(itemUid, uidType)
+
+  local heldItem = all.getHeldItem()
+
+  -- hold item by display_name
+  if not uidType then
+    -- already held
+    if heldItem.display_name == itemUid then return true end
+    -- not already held, hold it
+    local item = iut.findItemByDisplayNameInHotbar(itemUid)
+    if not item then return false end
+    player.input.setSelectedSlot(item)
+  end
+
+  if uidType == "skyblock_id" then
+    -- already held
+    if heldItem and heldItem.skyblock_id == itemUid then return true end
+    -- not already held hold it
+    local item = iut.getItemInHotbar(itemUid)
+    if not item then return false end
+    player.input.setSelectedSlot(item)
+    return true
+  end
+
+  if uidType == "name" then
+  end
+
+end
+
+--------------------------------------------------------------------------------
+
 ---@param num1 number
 ---@param num2 number
 ---@param tolerance number
 ---@return boolean
 function all.isNumCloseTo(num1, num2, tolerance)
   return math.abs(num1 - num2) < tolerance
+end
+
+--- @param pos1 table<string, number>
+--- @param pos2 table<string, number>
+--- @param tolerance number
+--- @return boolean
+function all.isPosCloseTo(pos1, pos2, tolerance)
+    local dx = pos1.x - pos2.x
+    local dy = pos1.y - pos2.y
+    local dz = pos1.z - pos2.z
+
+    -- compare distance squared to tolerance squared
+    return (dx^2 + dy^2 + dz^2) < (tolerance^2)
 end
 
 --------------------------------------------------------------------------------
@@ -143,6 +205,20 @@ function all.tableToString(table)
     end
 
     return result .. " }"
+end
+
+--------------------------------------------------------------------------------
+
+--- @param table table
+--- @param value any
+--- @param removeAll boolean | nil -- remove all matching values ?
+function all.removeValueFromTable(table, value, removeAll)
+  for i = #table, 1, -1 do
+    if table[i] == value then
+      table.remove(table, i)
+      if not removeAll then break end
+    end
+  end
 end
 
 --------------------------------------------------------------------------------
@@ -266,7 +342,7 @@ end
 ---@return boolean
 function all.isTargetInTableOfStrings(target, table)
   for _, str in ipairs(table) do
-    if string.find(target, str, 1, true) then
+    if string.find(str:lower(), target:lower(), 1, true) then
       return true
     end
   end
@@ -275,6 +351,7 @@ end
 
 --------------------------------------------------------------------------------
 
+-- this is still used by farming so im not removing it
 function all.onCooldown(uid, ticks)
   if all._cds[uid] and all._cds[uid] > 0 then return true -- is on cd
   else all._cds[uid] = ticks return false end -- not on cd, allow shit to run
@@ -286,9 +363,51 @@ local function updateCooldown()
   end
 end
 
+-- newgen cooldown -------------------------------------------------------------
+
+-- gdr stands for "gd ready" gd being cd but goonDown instead of coolDown
+-- so its just "cooldown ready" but goondown ready
+-- so u can do if gdr("bla") then run-this end
+function all.gdr(uid, ticks)
+
+  local current = all.gdrs[uid] or 0
+
+  -- not on cooldown
+  if current <= 0 then
+
+    if ticks == -1 then
+      all.gdrs[uid] = math.huge
+    else
+    all.gdrs[uid] = ticks or 20
+    end
+
+    return true
+
+  end
+
+  -- on cooldown
+  return false
+
+end
+
+local function updateGdr()
+  for key, ticks in pairs(all.gdrs) do
+    if ticks ~= math.huge then
+
+      if ticks > 0 then
+        all.gdrs[key] = ticks - 1
+      else
+        all.gdrs[key] = nil
+      end
+
+    end
+  end
+end
+
+
 --------------------------------------------------------------------------------
 
-local function strip(s)
+function all.strip(s)
   return s:gsub("^%s+", ""):gsub("%s+$", "")
 end
 
@@ -296,14 +415,14 @@ end
 ---@param lore table
 ---@param itrInReverse boolean
 ---@return boolean
-local function isTextInLore(text, lore, itrInReverse)
+function all.isTextInLore(text, lore, itrInReverse)
 
   local start = itrInReverse and #lore or 1
   local stop = itrInReverse and 1 or #lore
   local step = itrInReverse and -1 or 1
 
   for x = start, stop, step do
-    local line = removeMinecraftColors(lore[x])
+    local line = all.remMcColors(lore[x])
     if line:find(text, 1, true)  then
       do return true end
     end
@@ -525,6 +644,7 @@ end
 registerClientTickPost(function()
 
   updateCooldown()
+  updateGdr()
 
   getTabInfo()
 
@@ -542,6 +662,12 @@ registerClientTickPost(function()
 
   if all.tgl.blockBelowFeet then
     all.inf.blockBelowFeet = _getBlockBelowFeet() or idk
+  end
+
+  local test = player.input.getSelectedSlot()
+  if test and test > -1 and test < 9 then
+    local heldItem = player.inventory.getStack(test)
+    all.inf.heldItem = heldItem
   end
 
   -- if all.dump.playerInputStopAllValue == true then
