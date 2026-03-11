@@ -1,42 +1,50 @@
 -- @version 1.0
 -- @location /libs/
 
+local gut = require("goonUtils")
+
 local all = {}
 
 -- state -----------------------------------------------------------------------
 
 --- @class State
 --- @field name string
---- @field tick number -- local tick (resets onEnter)
--- wait tick, this counts down from higher number to 0
--- onUpdate doesn't run while this is above 0
---- @field wait number
---- @field step number
---- @field logPrefix string
+--- @field tick number -- increments every tick, resets onEnter
+--- @field wait number -- decrements every tick, halts onUpdate while > 0
+--- @field step number -- manually inc/dec this, resets onEnter
 --- @field machine StateMachine | nil
---- @field [string] any -- allows extra variables to be used in state
 local State = {}
 State.__index = State
 
--- creates a new independent state instance, unlinked to any stateMachine
+-- creates a unlinked state instance
 --- @param name string
 --- @return State
-function State.new(name)
+function State:new(name)
   return setmetatable({
     name = name,
     tick = 0,
     wait = 0,
-    step = 1,
-    logPrefix = "state " .. name .. ": ",
+    step = 1, -- value 1 is usefull for using with table indexes
     machine = nil
   }, State)
 end
 
--- increments steps and returns the new step
--- crashes for some reason
-function State:stepProc()
-  self.step = self.step + 1
+-- increments step and returns the new step
+--- @param amount number | nil
+--- @return number
+function State:stepProc(amount)
+  self.step = self.step + (amount or 1)
   return self.step
+end
+
+--- @deprecated switches your class, overwrite this in inherited states
+--- @diagnostic disable-next-line: unused-vararg
+function State:init(...)
+  if not self.machine then
+    error("state " .. self.name .. " has no machine linked")
+    return
+  end
+  self.machine:switch(self)
 end
 
 -- default callbacks, so they don't NEED to be defined
@@ -44,62 +52,86 @@ function State:onEnter() end -- called when entering the state
 function State:onUpdate() end -- called every tick while the state is active
 function State:onExit() end -- called when exiting the state
 
---- @param fields table<string>
---- @return nil
-function State:ensureFields(fields)
-  for _, field in ipairs(fields) do
-    if self[field] == nil then
+function State:info(msg)
+  if self.machine and self.machine.log then
+    self.machine.log.info(self.machine.logPrefix(self.name, msg))
+  end
+end
 
-      local msg = string.format(
-        "missing required field '%s' in state '%s'", field, self.name
-      )
-      if self.machine then self.machine:switch(nil) end
-      player.addMessage("error, report this in discord")
-      error(msg)
+function State:debug(msg)
+  if self.machine and self.machine.log then
+    self.machine.log.debug(self.machine.logPrefix(self.name, msg))
+  end
+end
 
-    end
+function State:error(msg)
+  if self.machine and self.machine.log then
+    self.machine.log.error(self.machine.logPrefix(self.name, msg))
+  end
+end
+
+function State:critical(msg)
+  if self.machine and self.machine.log then
+    self.machine.log.critical(self.machine.logPrefix(self.name, msg))
   end
 end
 
 -- state machine ---------------------------------------------------------------
 
 --- @class StateMachine
+--- @field states table<string, State>
 --- @field currentState State | nil
---- @field pendingState State | nil
+--- @field pendingState State | nil -- used for state switch
 --- @field tick number -- global tick, starts when script starts
+--- @field log any | nil
+--- @field rot any | nil
+--- @field blockUtils any | nil
+--- @field logPrefix fun( stateName: string, msg: string ): string
 local StateMachine = {}
 StateMachine.__index = StateMachine
 
 -- creates a new stateMachine instance
 --- @return StateMachine
-function StateMachine.new()
+function StateMachine:new()
   return setmetatable({
+    states = {},
     currentState = nil,
     pendingState = nil,
-    tick = 0
+    tick = 0,
+    log = nil,
+    rot = nil,
+    blockUtils = nil,
+    logPrefix = function(name, msg)
+      return
+        gut.clr.grayDark .. "[" ..
+        gut.clr.blue .. name ..
+        gut.clr.grayDark .. "] " ..
+        gut.clr.gray .. msg
+    end
   }, StateMachine)
 end
 
 -- registers a state into this statemachine
---- @param stateObj State
---- @return State
+--- @generic T : State
+--- @param stateObj T
+--- @return T
 function StateMachine:addState(stateObj)
-  stateObj.machine = self -- link state to this machine
+  local s = stateObj --[[@as State]]
+  s.machine = self -- link state to this machine
+  self.states[s.name] = stateObj
   return stateObj -- return so its store-able in a variable
 end
 
 -- changes the currentState
 --- @param stateObj State | nil
 function StateMachine:switch(stateObj)
-
   self.pendingState = stateObj
-
 end
 
 function StateMachine:performSwitch()
 
   -- trigger exit logic for state being switched from
-  if self.currentState  then
+  if self.currentState then
     self.currentState:onExit()
   end
 
@@ -140,57 +172,12 @@ function StateMachine:update()
     -- proceed state wait
     if self.currentState.wait > 0 then
       self.currentState.wait = self.currentState.wait - 1
-    end
-
-    if self.currentState.onUpdate and self.currentState.wait < 1 then
+    else
       self.currentState:onUpdate()
     end
 
   end
 end
-
--- example usage ---------------------------------------------------------------
-
--- local stm = StateMachine.new()
--- local states = {}
---
--- -- create the state objects
--- states.idle = stm:addState(State.new("idle"))
--- states.fishing = stm:addState(State.new("fishing"))
-
--- state fishing ---------------------------------------------------------------
---
--- function states.fishing:onUpdate()
---
---   -- this is state tick
---   if self.tick > 70 then
---     stm:switch(states.idle)
---   end
---
---   -- this is global tick
---   if self.machine.tick % 1200 == 0 then
---     print("stop gooning")
---   end
--- end
-
--- state idle ------------------------------------------------------------------
-
--- function states.idle:onUpdate()
---   if player.fishHook then
---     stm:switch(states.fishing)
---   end
--- end
-
--- state end -------------------------------------------------------------------
-
--- define initial state (starts the functioning)
--- stm:switch(states.idle)
-
--- registers -------------------------------------------------------------------
-
--- registerClientTickPre(function()
---   stm:update()
--- end)
 
 all.State = State
 all.StateMachine = StateMachine

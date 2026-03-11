@@ -15,7 +15,7 @@ local Location = {}
 Location.__index = Location
 
 --- @param name string
---- @param path table<table<string, number>> -- TODO: define the pos class here
+--- @param path table<Pos>
 function Location.new(name, path)
   return setmetatable({
     name = name,
@@ -23,7 +23,7 @@ function Location.new(name, path)
   }, Location)
 end
 
---- @return table<string, number> | nil
+--- @return Pos | nil
 function Location:getGoal()
   if not self.path or #self.path == 0 then return nil end
   return self.path[#self.path]
@@ -81,6 +81,13 @@ all.locations = {
     { x = -64.5, y = 161.5, z = -36.5 },
     { x = -110.5, y = 167.5, z = -71.5 },
     { x = -130.5, y = 174.5, z = -73.5 },
+  }),
+  royal_mines = Location.new("royal mines", {
+    coords.forge_top_left,
+    { x = 38.5, y = 149.5, z = 6.5 },
+    { x = 76.5, y = 145.5, z = 30.5 },
+    { x = 104.5, y = 156.5, z = 45.5 },
+    { x = 149.5, y = 167.5, z = 23.5 }
   })
 }
 
@@ -144,13 +151,42 @@ function all.getActiveCommission()
   for i, n in pairs(gut.inf.comms) do
     for i2, n2 in pairs(all.locations) do
 
-      if n:find(n2.name) then return { i, i2 } end
+      if n:find(n2.name) then
+
+        local type = nil
+        if n:find("mithril") then
+          type = all.mineables.mithril
+        elseif n:find("titanium") then
+          type = all.mineables.titanium
+        end
+
+        return {
+          comm_index = i,
+          comm_location_index = i2,
+          comm_mineable_type = type
+        }
+      end
 
     end
   end
 
   return nil
 end
+
+--------------------------------------------------------------------------------
+
+all.mineables = {}
+
+all.mineables.mithril = {
+  "wool",
+  "prismarine",
+  "cyan_terracotta"
+}
+
+all.mineables.titanium = {
+  "polished_diorite",
+  table.unpack(all.mineables.mithril)
+}
 
 --------------------------------------------------------------------------------
 
