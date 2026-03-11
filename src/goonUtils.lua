@@ -13,6 +13,11 @@ local regexes = {
   petNameInPetsMenu = "%[Lvl %d+%] (.+)%]"
 }
 
+--- @class Pos
+--- @field x number
+--- @field y number
+--- @field z number
+
 -- i like 3 letter words for naming schemes so cope with this bs naming scheme
 -- inf stands for info
 ---@class inf
@@ -176,8 +181,8 @@ function all.isNumCloseTo(num1, num2, tolerance)
   return math.abs(num1 - num2) < tolerance
 end
 
---- @param pos1 table<string, number>
---- @param pos2 table<string, number>
+--- @param pos1 Pos
+--- @param pos2 Pos
 --- @param tolerance number
 --- @return boolean
 function all.isPosCloseTo(pos1, pos2, tolerance)
