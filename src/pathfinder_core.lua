@@ -1,14 +1,18 @@
--- @version beta-0.3
+-- @version beta-0.5
 -- @location /libs/
 
 local Core = {}
 
-Core.maxNodes = 8000 -- haha memory leak go KABOOM<KABLOW<R.I.P MY GRANNY SHE GOT HIT BY A BAZOOKA<YEAH I THINK ABOUT HER EVERY TIME I HIT THE HOOKAH<KABLOW<KABOOM<KABLOW
+Core.maxNodes = 50000 -- haha memory leak go KABOOM<KABLOW<R.I.P MY GRANNY SHE GOT HIT BY A BAZOOKA<YEAH I THINK ABOUT HER EVERY TIME I HIT THE HOOKAH<KABLOW<KABOOM<KABLOW
 
-Core.jumpHeight = 6
+Core.jumpHeight = 1
 Core.smoothPath = false
 Core.fallDepth = 10
-Core.debugCapture = false
+
+Core.queuedPaths = {}
+
+
+Core.debugCapture = true
 Core._debugExpanded = {}
 Core._debugOpen = {}
 local _lock = false
@@ -60,7 +64,7 @@ local function isWalkable(bx, by, bz)
     local foot = world.getBlock(bx, by,     bz)
     local head = world.getBlock(bx, by + 1, bz)
     local hair = world.getBlock(bx, by + 2, bz)
-
+    
     if gnd and gnd.is_solid then
         if Core.getMaxYCollision(bx, by - 1, bz) > 1.0 then
             return false
@@ -76,22 +80,24 @@ local function isWalkable(bx, by, bz)
     if footCollision > 0.6 then
         return false
     end
-
+    if hair and hair.is_solid then return false end
+    if head and head.is_solid then return false end
     if Core.getMaxYCollision(bx,by-1,bz) + footCollision > 1 then return false end
-    if Core.getMaxYCollision(bx, by + 1, bz) > 0.5 then return false end
+    if Core.getMaxYCollision(bx, by + 1, bz) >= 0.5 then return false end
     if Core.getMaxYCollision(bx, by + 2, bz) > 0.5 then return false end
     if not gnd or not gnd.is_solid or gnd.is_liquid then return false end
+    if foot.name:find("lava") then return false end
     return true
 end
 
 
 
-local debugResolveY={}
+Core.debugResolveY={}
 
 local function resolveY(cx, cy, cz, nx, nz)
     if isWalkable(nx, cy, nz) then return cy end
 
-    if isLadder(nx, cy, nz) or isLadder(nx, cy + 1, nz) then
+    if isLadder(nx, cy, nz) or isLadder(nx, cy + 1, nz) or isLadder(nx, cy + 2, nz) then
         local upY = cy
         while isLadder(nx, upY + 1, nz) do
             upY = upY + 1
@@ -100,15 +106,19 @@ local function resolveY(cx, cy, cz, nx, nz)
         if isWalkable(nx, upY + 1, nz) then
             return upY + 1
         elseif isWalkable(nx, upY, nz) then
-            return upY
+            return upY + 1
         end
     end
 
-    if Core.jumpHeight >= 1 and isWalkable(nx, cy + 1, nz) then
-        return cy + 1
+    for j = 1, Core.jumpHeight do
+        if Core.getMaxYCollision(cx, cy + j + 1, cz) > 0.5 then break end
+        if isWalkable(nx, cy + j, nz) then
+            return cy + j
+        end
+        if isSolid(nx, cy + j, nz) and not isWalkable(nx, cy + j + 1, nz) then break end
     end
 
-    for d = 1, Core.fallDepth do
+    for d = 0, Core.fallDepth do
         local targetY = cy - d
         if debugResolveY then
             debugResolveY[#debugResolveY + 1] = {x = nx, y = targetY, z = nz}
@@ -121,7 +131,7 @@ local function resolveY(cx, cy, cz, nx, nz)
         if isLadder(nx, targetY, nz) then
             local slideY = targetY
             while isLadder(nx, slideY - 1, nz) do
-                slideY = slideY - 1
+                slideY = slideY
             end
             if isWalkable(nx, slideY - 1, nz) then
                 return slideY - 1
@@ -222,13 +232,16 @@ local function smoothPath(rawPath)
     local smooth = {rawPath[1]}
     local anchor = 1
     local i      = 2
-
+    local valid = true
+    
     while i <= #rawPath do
         local a = rawPath[anchor]
         local b = rawPath[i]
 
         if b.y ~= a.y then
             if i - 1 > anchor then
+                if b.y-a.y > Core.jumpHeight then valid = false break end
+                -- print(string.format("y diff: %d", b.y-a.y))
                 table.insert(smooth, rawPath[i - 1])
                 anchor = i - 1
             else
@@ -253,7 +266,7 @@ local function smoothPath(rawPath)
     end
 
     local last  = rawPath[#rawPath]
-    local slast = smooth[#smooth]
+    local slast = valid and smooth[#smooth] or rawPath[#rawPath]
     if not (slast.x == last.x and slast.y == last.y and slast.z == last.z) then
         table.insert(smooth, last)
     end
@@ -271,135 +284,94 @@ local function reconstructPath(came, node)
     return raw
 end
 
--- Attempts to stitch a forward partial path and a reverse partial path together.
--- Finds the closest pair of endpoints between the two paths and splices them.
--- Returns the merged path, or whichever single path was longer if no reasonable meet point exists.
-local function stitchPaths(fwdPath, revPath)
-    if not fwdPath or #fwdPath == 0 then
-        if revPath and #revPath > 0 then
-            -- reverse the reverse path so it runs start→goal direction
-            local out = {}
-            for i = #revPath, 1, -1 do out[#out + 1] = revPath[i] end
-            return out
-        end
-        return nil
-    end
-    if not revPath or #revPath == 0 then return fwdPath end
-
-    -- The reverse search ran from goal→start, so revPath[1] is near the goal.
-    -- Flip it so it runs from its best node toward the goal.
-    local revFlipped = {}
-    for i = #revPath, 1, -1 do revFlipped[#revFlipped + 1] = revPath[i] end
-
-    -- Find the closest pair of nodes between the tip of fwdPath and the tip of revFlipped.
-    -- "Tip" = the end of fwdPath and the start of revFlipped (they should be closest).
-    -- We do a small window search rather than O(n²) across full paths.
-    local WINDOW = 10
-    local fStart = math.max(1, #fwdPath - WINDOW)
-    local rEnd   = math.min(#revFlipped, WINDOW)
-
-    local bestDist = math.huge
-    local bestFi, bestRi = #fwdPath, 1
-
-    for fi = fStart, #fwdPath do
-        local fp = fwdPath[fi]
-        for ri = 1, rEnd do
-            local rp = revFlipped[ri]
-            local dx = fp.x - rp.x
-            local dy = fp.y - rp.y
-            local dz = fp.z - rp.z
-            local d  = dx*dx + dy*dy + dz*dz
-            if d < bestDist then
-                bestDist = d
-                bestFi   = fi
-                bestRi   = ri
-            end
-        end
-    end
-
-    -- Only stitch if the gap is reasonable (≤ ~8 blocks manhattan-ish).
-    -- If the gap is huge the paths didn't get close enough to be useful joined.
-    if bestDist > 64 then
-        -- Return whichever partial got closer to the other's origin.
-        if #fwdPath >= #revFlipped then return fwdPath else return revFlipped end
-    end
-
-    local merged = {}
-    for i = 1, bestFi do
-        merged[#merged + 1] = fwdPath[i]
-    end
-    for i = bestRi, #revFlipped do
-        merged[#merged + 1] = revFlipped[i]
-    end
-    return merged
-end
 
 -- with this function, it's synchronous so you must run it on another thread or your mc will freeze for god know how long
 -- also the commented out return raw or return partial are for unsmoothened node only path, should make it into a feature but naah
-local function astarSearch(start, goal, _isReverse)
-    local open = Heap.new()
-    local gScore = {}
-    local came = {}
-    local closed = {}
+local function astarSearch(start, goal)
+    local open          = Heap.new()
+    local gScore        = {}
+    local came          = {}
+    local closed        = {}
 
-    local gx, gy, gz = goal.x, goal.y, goal.z
-    local sk = key(start.x, start.y, start.z)
-    gScore[sk] = 0
+    Core._debugExpanded = {}
+    Core._debugOpen     = {}
 
-    local startH = heuristic(start.x, start.y, start.z, gx, gy, gz)
-    open:push({ x = start.x, y = start.y, z = start.z, f = startH, h = startH })
+    local sk            = key(start.x, start.y, start.z)
+    gScore[sk]          = 0
 
-    local bestNode = { x = start.x, y = start.y, z = start.z, h = startH }
-    local expansions = 0
+    local startH        = heuristic(start.x, start.y, start.z, goal.x, goal.y, goal.z)
+    open:push({
+        x = start.x,
+        y = start.y,
+        z = start.z,
+        f = startH,
+        h = startH,
+    })
 
-    local DIRS = {
-        { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
-        { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 },
+    local bestNode   = { x = start.x, y = start.y, z = start.z }
+    local bestH      = startH
+
+    local DIRS       = {
+        { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },   -- cardinal
+        { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 }, -- diagonal
     }
+
+    local expansions = 0
 
     while open:size() > 0 do
         expansions = expansions + 1
         if expansions > Core.maxNodes then
             local partial = reconstructPath(came, bestNode)
-            if not _isReverse then
-                -- Run a reverse search from goal toward start and try to stitch.
-                local revPartial, revErr = astarSearch(goal, start, true)
-                local merged = stitchPaths(partial, revPartial)
-                local final = (Core.smoothPath and merged) and smoothPath(merged) or merged
-                return final, "limit"
+            if Core.smoothPath then
+                return smoothPath(partial), "node limit (" .. Core.maxNodes .. ") — partial path returned"
+            else
+                return partial, "node limit (" .. Core.maxNodes .. ") — partial path returned"
             end
-            return Core.smoothPath and smoothPath(partial) or partial, "limit"
         end
 
+
         local cur = open:pop()
-        local ck = key(cur.x, cur.y, cur.z)
+        local ck  = key(cur.x, cur.y, cur.z)
         if closed[ck] then goto continue end
         closed[ck] = true
 
-        if cur.h < bestNode.h then
+        if Core.debugCapture then
+            Core._debugExpanded[#Core._debugExpanded + 1] = { x = cur.x, y = cur.y, z = cur.z }
+        end
+
+        -- Update best-node tracker
+        if cur.h < bestH then
+            bestH    = cur.h
             bestNode = cur
         end
 
-        if math.abs(cur.x - gx) <= 1 and math.abs(cur.y - gy) <= 1 and math.abs(cur.z - gz) <= 1 then
+        if math.abs(cur.x - goal.x) <= 1
+            and math.abs(cur.y - goal.y) <= 1
+            and math.abs(cur.z - goal.z) <= 1 then
             local raw = reconstructPath(came, cur)
-            if not (raw[#raw].x == gx and raw[#raw].y == gy and raw[#raw].z == gz) then
-                raw[#raw + 1] = { x = gx, y = gy, z = gz }
+            local last = raw[#raw]
+            if not (last.x == goal.x and last.y == goal.y and last.z == goal.z) then
+                raw[#raw + 1] = { x = goal.x, y = goal.y, z = goal.z }
             end
-            return Core.smoothPath and smoothPath(raw) or raw, nil
+            if Core.smoothPath then
+                return smoothPath(raw), nil
+            else
+                return raw, nil
+            end
         end
 
-        local verticalDirs = { { 0, 0, 1 }, { 0, 0, -1 } }
+        local verticalDirs = { { 0, 0, 1 }, { 0, 0, -1 } } -- dx, dz, dy
         for _, vd in ipairs(verticalDirs) do
             local nx, ny, nz = cur.x, cur.y + vd[3], cur.z
             if isLadder(cur.x, cur.y, cur.z) or isLadder(nx, ny, nz) then
                 local nk = key(nx, ny, nz)
                 if not closed[nk] then
                     local mc = 0.5
-                    local tg = gScore[ck] + mc
+                    local tg = (gScore[ck] or math.huge) + mc
                     if tg < (gScore[nk] or math.huge) then
                         gScore[nk] = tg
                         came[nk] = cur
-                        local h = heuristic(nx, ny, nz, gx, gy, gz)
+                        local h = heuristic(nx, ny, nz, goal.x, goal.y, goal.z)
                         open:push({ x = nx, y = ny, z = nz, f = tg + h, h = h })
                     end
                 end
@@ -424,60 +396,63 @@ local function astarSearch(start, goal, _isReverse)
                 if not closed[nk] then
                     local diagonal = (math.abs(dx) + math.abs(dz) == 2)
                     local verticalDiff = ny - cur.y
-                    local groundBlock = world.getBlock(nx, ny - 1, nz)
-                    
-                    local preferenceBonus = 0
-                    if groundBlock then
-                        local name = groundBlock.name:lower()
-                        if string.match(name, "slab") or string.match(name, "stairs") then
-                            preferenceBonus = -0.4
-                        end
-                    end
 
-                    local verticalSurcharge = 0
+                    local onLadder = isLadder(nx, ny, nz) or isLadder(cur.x, cur.y, cur.z)
+
                     local fallPenalty = 0
-                    if verticalDiff > 0 then
-                        verticalSurcharge = verticalDiff * 2.0
+                    local verticalSurcharge = math.abs(verticalDiff) * 0.5
+
+                    if onLadder then
+                        verticalSurcharge = math.abs(verticalDiff) * 0.1
                     elseif verticalDiff < 0 then
-                        fallPenalty = math.abs(verticalDiff) * 1.5
+                        fallPenalty = math.abs(verticalDiff) * 2.0
                     end
 
-                    local mc = (diagonal and 1.4142 or 1.0) + verticalSurcharge + fallPenalty + preferenceBonus
-                    mc = math.max(mc, 0.1)
-                    
-                    local tg = gScore[ck] + mc
+                    local mc = (diagonal and 1.4142 or 1.0)
+                        + verticalSurcharge
+                        + fallPenalty
+
+                    local tg = (gScore[ck] or math.huge) + mc
+
                     if tg < (gScore[nk] or math.huge) then
                         gScore[nk] = tg
-                        came[nk] = cur
-                        local h = heuristic(nx, ny, nz, gx, gy, gz)
-                        local f = tg + h
-                        open:push({ x = nx, y = ny, z = nz, f = f - (tg * 0.0001), h = h })
+                        came[nk]   = cur
+                        local h    = heuristic(nx, ny, nz, goal.x, goal.y, goal.z)
+                        open:push({ x = nx, y = ny, z = nz, f = tg + h, h = h })
+                        if Core.debugCapture then
+                            Core._debugOpen[#Core._debugOpen + 1] = { x = nx, y = ny, z = nz }
+                        end
                     end
                 end
             end
             ::next_dir::
         end
+
         ::continue::
     end
 
     if bestNode.x == start.x and bestNode.y == start.y and bestNode.z == start.z then
         return nil, "no path found"
     end
-
     local partial = reconstructPath(came, bestNode)
-
-    if not _isReverse then
-        -- Run a reverse search from goal toward start and try to stitch.
-        local revPartial, revErr = astarSearch(goal, start, true)
-        local merged = stitchPaths(partial, revPartial)
-        local final = (Core.smoothPath and merged) and smoothPath(merged) or merged
-        return final, "no path found - partial"
+    if Core.smoothPath then
+        return smoothPath(partial), "no path found — partial path returned"
+    else
+        return partial, "no path found — partial path returned"
     end
-
-    return Core.smoothPath and smoothPath(partial) or partial, "no path found - partial"
 end
 
+
 function Core.snapPos(pos)
+    -- local low = pos.y
+    -- local ground = world.raycast({
+    --     startX = pos.x, startY = pos.y, startZ = pos.z,
+    --     endX = pos.x,
+    --     endY = -999,
+    --     endZ = pos.z
+    -- })
+    -- if ground.blockPos.y then low = ground.blockPos.y end
+    -- if player.entity.is_on_ground then low = player.getPos().y end
     return {
         x = math.floor(pos.x),
         y = math.floor(pos.y),
@@ -495,14 +470,32 @@ function Core.findPath(goal, callback)
         return
     end
     _lock = true
-
+    
     threads.startThread(function()
         local s = Core.snapPos(player.getPos())
         local g = Core.snapPos(goal)
         local path, err = astarSearch(s, g)
         _lock = false
-        if callback then callback(path, err) end
+        if callback then
+            callback(path, err)
+            if #Core.queuedPaths >= 1 then
+                Core.findPath(Core.queuedPaths[1].goal, Core.queuedPaths[1].callback)
+                table.remove(Core.queuedPaths, 1)
+            end
+        end
     end)
+end
+
+function Core.queuePath(goal, callback)
+    if not _lock then
+        Core.findPath(goal, callback)
+    else
+        table.insert(Core.queuedPaths, { goal = goal, callback = callback })
+    end
+end
+
+function Core.clearQueue()
+    Core.queuedPaths = {}
 end
 
 function Core.isSearching()

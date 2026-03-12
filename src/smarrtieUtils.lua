@@ -1,4 +1,4 @@
--- @version 1.0.1
+-- @version 1.0.2
 -- @location /libs/
 
 local utils = {}
@@ -18,8 +18,22 @@ registerWorldRenderer(function()
 end)
 
 function utils.getDistance(pos1, pos2)
-    print(string.format("Distance between (%d, %d, %d) and (%d, %d, %d)", pos1.x, pos1.y, pos1.z, pos2.x, pos2.y, pos2.z))
+    if not pos1 then return nil end
+    if not pos2 then return nil end
     return math.sqrt((pos1.x - pos2.x)^2 + (pos1.y - pos2.y)^2 + (pos1.z - pos2.z)^2)
+end
+
+function utils.dump(o)
+   if type(o) == 'table' then
+      local s = '{ '
+      for k,v in pairs(o) do
+         if type(k) ~= 'number' then k = '"'..k..'"' end
+         s = s .. '['..k..'] = ' .. utils.dump(v) .. ','
+      end
+      return s .. '} '
+   else
+      return tostring(o)
+   end
 end
 
 function utils.deltaTime()
