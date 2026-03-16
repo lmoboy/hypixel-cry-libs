@@ -115,16 +115,22 @@
       "ver": "beta-0.5"
     },
     {
-      "name": "pathwalker.lua",
-      "md5": "c8a34a6fca574cd00ef5e9440042bf80",
-      "location": "/libs/",
-      "ver": "beta-0.4"
-    },
-    {
       "name": "smarrtieUtils.lua",
       "md5": "655a7ef0f73eaad9c6041824a3dcb94f",
       "location": "/libs/",
       "ver": "1.0.2"
+    },
+    {
+      "name": "pathwalker.lua",
+      "md5": "5907809bf5b500e530f2e63b0aa07db2",
+      "location": "/libs/",
+      "ver": "beta-0.4"
+    },
+    {
+      "name": "redstone_predictor.lua",
+      "md5": "e76d2bf59c3a964032f152cf2cd24746",
+      "location": "",
+      "ver": ""
     }
   ]
 }
