@@ -1,341 +1,321 @@
 -- @version beta-0.4
 -- @location /libs/
 
-local aim = require("rotations_v3")
+local aim             = require("rotations_v3")
 local pathfinder_core = require("pathfinder_core")
-local smarrtieUtils   = require("smarrtieUtils")
+local util            = require("smarrtieUtils")
 
 local Walker = {}
 
-Walker.active = false
-Walker.complete = false
-Walker.lookAhead = 1
-Walker.lookAtPath = true
-local waypoints = {}
+-- ============================================================
+-- Public config
+-- ============================================================
+Walker.active          = false
+Walker.complete        = false
+Walker.lookAhead       = 1
+Walker.lookAtPath      = true
+Walker.recheckNode     = true
+
+Walker.stopDist        = 0.7
+Walker.sprintEnabled   = true
+Walker.jumpRayDistance = 0.9
+Walker.fallRecoverDist = 6
+
+Walker.sprintForwardMin  = 0.8
+Walker.sprintDistMin     = 2.0
+
+-- Stuck detection (exposed so external scripts can read)
+Walker.stuckTicks    = 0
+Walker.STUCK_THRESH  = 8
+Walker.STUCK_DIST    = 0.05
+
+-- ============================================================
+-- Private state
+-- ============================================================
+local waypoints   = {}
 local currentIndex = 1
+local lastPos      = nil
 
-Walker.stopDist = 0.5
-Walker.sprintEnabled = true
-Walker.sprintStartForward = 0.55
-Walker.sprintKeepForward = 0.35
-Walker.sprintStartDistance = 1.2
-Walker.sprintKeepDistance = 1.7
-
-Walker.forwardThreshold = 0.1
-Walker.lateralThreshold = 0.1
-
-Walker.jumpRayDistance = 1
-
-Walker.lineFollowLookahead = 0.8
-
-local sprintHolding = false
-local sprintPressedState = false
-
-local function setSprintPressed(state)
-    if sprintPressedState ~= state then
-        player.input.setPressedSprinting(state)
-        sprintPressedState = state
-    end
-end
-
+-- ============================================================
+-- Input helpers
+-- ============================================================
 local function clearInputs()
     player.input.setPressedForward(false)
     player.input.setPressedBack(false)
     player.input.setPressedLeft(false)
     player.input.setPressedRight(false)
     player.input.setPressedJump(false)
-    setSprintPressed(false)
-    sprintHolding = false
+    player.input.setPressedSprinting(false)
+end
+
+-- ============================================================
+-- World queries
+-- ============================================================
+local function getBlockAt(pos)
+    return world.getBlock(math.floor(pos.x), math.floor(pos.y), math.floor(pos.z))
 end
 
 local function isOnLadder()
     local pos = player.getPos()
-    local bx = math.floor(pos.x)
-    local by = math.floor(pos.y)
-    local bz = math.floor(pos.z)
-
-    local block = world.getBlock(bx, by, bz)
-    if not block or not block.name then
-        return false
-    end
-
-    return string.find(block.name, "ladder") ~= nil
+    if not pos then return false end
+    local b = getBlockAt(pos)
+    return b and b.name and b.name:find("ladder") ~= nil
 end
 
-local function needsJump(dirX, dirZ)
+local function isInWater()
     local pos = player.getPos()
-    local checkY = pos.y + 0.7
-    local dist = 0.8
+    if not pos then return false end
+    local b = getBlockAt(pos)
+    return b and b.name and b.name:find("water") ~= nil
+end
 
-    local result = world.raycast{
-        startX = pos.x, startY = checkY, startZ = pos.z,
-        endX = pos.x + dirX * dist, endY = checkY, endZ = pos.z + dirZ * dist
+local function hasChainLoS(fromIdx, toIdx)
+    for i = fromIdx, toIdx - 1 do
+        local a, b = waypoints[i], waypoints[i + 1]
+        if not a or not b then return false end
+        local r = world.raycast{
+            startX = a.x+0.5, startY = a.y+0.5, startZ = a.z+0.5,
+            endX   = b.x+0.5, endY   = b.y+0.5, endZ   = b.z+0.5,
+        }
+        if r and r.type == "block" then return false end
+    end
+    return true
+end
+
+local function needsJump(dirX, dirZ, horizontalDist)
+    local pos = player.getPos()
+    if not pos then return false end
+    if not player.isOnGround() and not isInWater() then return false end
+
+    local nearNode = horizontalDist <= 2.0
+    local isStuck  = Walker.stuckTicks >= Walker.STUCK_THRESH
+    if not nearNode and not isStuck then return false end
+
+    local r = world.raycast{
+        startX = pos.x, startY = pos.y + 0.7, startZ = pos.z,
+        endX   = pos.x + dirX * Walker.jumpRayDistance,
+        endY   = pos.y + 0.7,
+        endZ   = pos.z + dirZ * Walker.jumpRayDistance,
     }
-
-    if result and result.type == "block" then
-        local bx, by, bz = result.blockPos.x, result.blockPos.y, result.blockPos.z
-        local maxY = pathfinder_core.getMaxYCollision(bx, by, bz)
-        if (by + maxY) > (pos.y + 0.6) then
+    if r and r.type == "block" then
+        local bp   = r.blockPos
+        local maxY = pathfinder_core.getMaxYCollision(bp.x, bp.y, bp.z)
+        local hdiff = (bp.y + maxY) - pos.y
+        if hdiff > 0.1 and hdiff <= 1.5 then
+            if isStuck then Walker.stuckTicks = 0 end
             return true
         end
     end
     return false
 end
 
-local function insertNewPoint(ms, waypoint)
-    local isNew = true
-    for _, wp in pairs(waypoints) do
-        if wp.x == waypoint.x and wp.y == waypoint.y and wp.z == waypoint.z then
-            isNew = false
-            break
-        end
+-- ============================================================
+-- Public API
+-- ============================================================
+function Walker.getClosestNode(fromPos)
+    if #waypoints == 0 then return 1 end
+    fromPos = fromPos or player.getPos()
+    local best, bestDist = 1, math.huge
+    for i, wp in ipairs(waypoints) do
+        local d = util.getDistance(wp, fromPos)
+        if d < bestDist then bestDist, best = d, i end
     end
-    if isNew then table.insert(ms, {x = waypoint.x, y = waypoint.y, z = waypoint.z}) end
-end
-
-local function getClosestIndex()
-    local closest = 1
-    for index, wp in ipairs(waypoints) do
-        if smarrtieUtils.getDistance(wp, player.getPos()) <
-            smarrtieUtils.getDistance(waypoints[closest], player.getPos()) then
-            closest = index
-        end
-    end
-    return math.min(closest + 1, #waypoints)
-end
-
--- Projects point P onto line segment AB, returns the closest point on AB
--- and the t parameter [0,1] along the segment.
-local function projectOntoSegment(px, pz, ax, az, bx, bz)
-    local abx = bx - ax
-    local abz = bz - az
-    local apx = px - ax
-    local apz = pz - az
-    local ab2 = abx * abx + abz * abz
-    if ab2 < 0.0001 then
-        return ax, az, 0
-    end
-    local t = (apx * abx + apz * abz) / ab2
-    t = math.max(0, math.min(1, t))
-    return ax + abx * t, az + abz * t, t
-end
-
--- Returns the steering target: a point Walker.lineFollowLookahead blocks
--- ahead of the player's projection onto the current segment, clamped to the
--- segment end so we never overshoot the waypoint.
-local function getLineFollowTarget(pos)
-    if currentIndex <= 1 or currentIndex > #waypoints then
-        -- No previous node yet; just aim at the current waypoint centre
-        local wp = waypoints[currentIndex]
-        if not wp then return nil end
-        return wp.x + 0.5, wp.y, wp.z + 0.5
-    end
-
-    local prev = waypoints[currentIndex - 1]
-    local curr = waypoints[currentIndex]
-
-    local ax, az = prev.x + 0.5, prev.z + 0.5
-    local bx, bz = curr.x + 0.5, curr.z + 0.5
-
-    -- Project player onto the segment
-    local projX, projZ, t = projectOntoSegment(pos.x, pos.z, ax, az, bx, bz)
-
-    -- Step lookahead distance ahead along the segment
-    local segLen = math.sqrt((bx - ax)^2 + (bz - az)^2)
-    if segLen < 0.001 then
-        return bx, curr.y, bz
-    end
-
-    local tStep = Walker.lineFollowLookahead / segLen
-    local tTarget = math.min(t + tStep, 1.0)
-
-    local targetX = ax + (bx - ax) * tTarget
-    local targetZ = az + (bz - az) * tTarget
-
-    -- Interpolate Y between the two waypoints
-    local targetY = prev.y + (curr.y - prev.y) * tTarget
-
-    return targetX, targetY, targetZ
+    return math.min(best + 1, #waypoints)
 end
 
 function Walker.followPath(path, opts)
-    if not path or #path == 0 then
-        return
-    end
+    if not path or #path == 0 then Walker.cancel(); return end
     opts = opts or {}
-
     waypoints = {}
     for _, wp in ipairs(path) do
-        insertNewPoint(waypoints, wp)
+        waypoints[#waypoints+1] = { x=wp.x, y=wp.y, z=wp.z }
     end
-
-    currentIndex = getClosestIndex()
-
-    Walker.stopDist = opts.stopDist or 0.4
-    Walker.sprintEnabled = (opts.sprint == nil) and true or opts.sprint
+    currentIndex           = Walker.getClosestNode()
+    Walker.stopDist        = opts.stopDist      or 0.4
+    Walker.sprintEnabled   = opts.sprint == nil and true or opts.sprint
     Walker.jumpRayDistance = opts.jumpRayDistance or 1.5
-    sprintHolding = false
-    Walker.complete = false
-    Walker.active = true
+    Walker.stuckTicks      = 0
+    lastPos                = nil
+    Walker.complete        = false
+    Walker.active          = true
 end
 
 function Walker.cancel()
-    Walker.active = false
+    Walker.active   = false
     Walker.complete = false
+    Walker.stuckTicks = 0
+    lastPos = nil
     clearInputs()
-    waypoints = {}
-    currentIndex = 1
+    waypoints     = {}
+    currentIndex  = 1
 end
 
 function Walker.walkToBlock(x, y, z, opts)
-    Walker.followPath({ {x = x, y = y, z = z} }, opts)
+    Walker.followPath({{ x=x, y=y, z=z }}, opts)
 end
 
+function Walker.isComplete() return Walker.complete end
+
+-- ============================================================
+-- Tick
+-- ============================================================
 registerClientTick(function()
     if not Walker.active then return end
 
     if #waypoints == 0 or currentIndex > #waypoints then
-        Walker.active = false
+        Walker.active   = false
         Walker.complete = true
         clearInputs()
         return
     end
 
     local pos = player.getPos()
+    if not pos then return end
+
     local vel = {
         x = player.velocity_x or 0,
         y = player.velocity_y or 0,
-        z = player.velocity_z or 0
+        z = player.velocity_z or 0,
     }
 
-    -- Velocity-based look-ahead to skip waypoints we're already passing
-    local predictionTicks = 5
-    local predictedPos = {
-        x = pos.x + (vel.x * predictionTicks),
-        y = pos.y + (vel.y * predictionTicks),
-        z = pos.z + (vel.z * predictionTicks)
-    }
+    -- ── Stuck detection ───────────────────────────────────────
+    if lastPos then
+        local moved = math.sqrt((pos.x-lastPos.x)^2 + (pos.z-lastPos.z)^2)
+        Walker.stuckTicks = moved < Walker.STUCK_DIST and Walker.stuckTicks + 1 or 0
+    end
+    lastPos = { x=pos.x, y=pos.y, z=pos.z }
 
-    local lookAheadLimit = math.min(currentIndex + 8, #waypoints)
-    for i = lookAheadLimit, currentIndex + 1, -1 do
-        local wp = waypoints[i]
-        local pdx = (wp.x + 0.5) - predictedPos.x
-        local pdz = (wp.z + 0.5) - predictedPos.z
-        local pdy = (wp.y + 0.5) - predictedPos.y
-        local predDistH = math.sqrt(pdx * pdx + pdz * pdz)
-        local yBuffer = (vel.y < 0) and 2.0 or 1.2
-        if predDistH < (Walker.stopDist * 2.0) and math.abs(pdy) < yBuffer then
-            currentIndex = i
-            break
+    -- ── Fall recovery ─────────────────────────────────────────
+    local cwp = waypoints[currentIndex]
+    if cwp then
+        local fd = math.sqrt(
+            ((cwp.x+0.5)-pos.x)^2 +
+            ((cwp.z+0.5)-pos.z)^2 +
+            ((cwp.y+0.5)-pos.y)^2
+        )
+        if fd > Walker.fallRecoverDist then
+            currentIndex      = Walker.getClosestNode(pos)
+            Walker.stuckTicks = 0
         end
     end
 
-    -- Advance past waypoints we've reached
-    local currentTarget = waypoints[currentIndex]
-    local dx = (currentTarget.x + 0.5) - pos.x
-    local dz = (currentTarget.z + 0.5) - pos.z
-    local dy = (currentTarget.y + 0.5) - pos.y
-    local horizontalDist = math.sqrt(dx * dx + dz * dz)
+    -- ── Velocity-predicted lookahead with chain LOS ───────────
+    -- local predPos = {
+    --     x = pos.x + vel.x * 3,
+    --     y = pos.y + vel.y * 3,
+    --     z = pos.z + vel.z * 3,
+    -- }
+    -- local yBuffer    = vel.y < 0 and 2.0 or 1.5
+    -- local skipLimit  = math.min(currentIndex + 6, #waypoints)
+    -- for i = skipLimit, currentIndex + 1, -1 do
+    --     local wp  = waypoints[i]
+    --     local pdx = (wp.x+0.5) - predPos.x
+    --     local pdz = (wp.z+0.5) - predPos.z
+    --     local pdy = (wp.y+0.5) - predPos.y
+    --     if math.sqrt(pdx*pdx + pdz*pdz) < Walker.stopDist * 2.0
+    --        and math.abs(pdy) < yBuffer
+    --        and hasChainLoS(currentIndex, i)
+    --     then
+    --         currentIndex = i
+    --         break
+    --     end
+    -- end
 
-    if horizontalDist <= Walker.stopDist and math.abs(dy) < 1.2 then
+    -- ── Advance past reached node ─────────────────────────────
+    local function refreshTarget()
+        local wp = waypoints[currentIndex]
+        if not wp then return nil, 0, 0, 0, 0 end
+        local ddx = (wp.x+0.5) - pos.x
+        local ddz = (wp.z+0.5) - pos.z
+        local ddy = wp.y       - pos.y
+        return wp, ddx, ddz, ddy, math.sqrt(ddx*ddx + ddz*ddz)
+    end
+
+    local target, dx, dz, dy, hDist = refreshTarget()
+    if not target then
+        Walker.active = false; Walker.complete = true; clearInputs(); return
+    end
+
+    if hDist <= Walker.stopDist and math.abs(dy) < 1.5 then
         currentIndex = currentIndex + 1
         if currentIndex > #waypoints then
-            Walker.active = false
-            Walker.complete = true
-            clearInputs()
-            return
+            Walker.active = false; Walker.complete = true; clearInputs(); return
         end
-        currentTarget = waypoints[currentIndex]
-        dx = (currentTarget.x + 0.5) - pos.x
-        dz = (currentTarget.z + 0.5) - pos.z
-        dy = (currentTarget.y + 0.5) - pos.y
-        horizontalDist = math.sqrt(dx * dx + dz * dz)
+        target, dx, dz, dy, hDist = refreshTarget()
+        if not target then
+            Walker.active = false; Walker.complete = true; clearInputs(); return
+        end
     end
 
-    -- Ladder climb
+    Walker.currentIndex = currentIndex  -- keep public field in sync
+
+    -- ── Ladder ────────────────────────────────────────────────
     if isOnLadder() and dy > 0.2 then
         clearInputs()
         player.input.setPressedJump(true)
+        local cx   = math.floor(pos.x) + 0.5
+        local cz   = math.floor(pos.z) + 0.5
+        local offX = cx - pos.x
+        local offZ = cz - pos.z
+        local yaw  = math.rad((player.getRotation() or {}).yaw or 0)
+        local fC   = offX * (-math.sin(yaw)) + offZ * math.cos(yaw)
+        local rC   = offX *   math.cos(yaw)  + offZ * math.sin(yaw)
+        local thr  = 0.1
+        player.input.setPressedForward(fC >  thr)
+        player.input.setPressedBack   (fC < -thr)
+        player.input.setPressedLeft   (rC >  thr)
+        player.input.setPressedRight  (rC < -thr)
         return
     end
 
-    -- ---------------------------------------------------------------
-    -- Line-following: compute steering direction from virtual line
-    -- ---------------------------------------------------------------
-    local steerX, steerY, steerZ = getLineFollowTarget(pos)
-
-    local sdx, sdz
-    if steerX then
-        sdx = steerX - pos.x
-        sdz = steerZ - pos.z
-    else
-        sdx = dx
-        sdz = dz
+    -- ── Water ─────────────────────────────────────────────────
+    if isInWater() then
+        player.input.setPressedJump(dy > 0.0)
+        -- fall through so horizontal steering still applies
     end
 
-    local steerDist = math.sqrt(sdx * sdx + sdz * sdz)
-    local invLen = 1 / math.max(steerDist, 0.001)
-    local dirX = sdx * invLen
-    local dirZ = sdz * invLen
-    -- ---------------------------------------------------------------
+    -- ── Direction decomposition ───────────────────────────────
+    local inv  = 1 / math.max(hDist, 0.001)
+    local dirX = dx * inv
+    local dirZ = dz * inv
 
-    local rot = player.getRotation()
-    local yawRad = math.rad(rot.yaw or 0)
-    local forwardX = -math.sin(yawRad)
-    local forwardZ =  math.cos(yawRad)
-    local rightX   =  math.cos(yawRad)
-    local rightZ   =  math.sin(yawRad)
+    local yaw      = math.rad((player.getRotation() or {}).yaw or 0)
+    local fwdX     = -math.sin(yaw)
+    local fwdZ     =  math.cos(yaw)
+    local fwdComp  = dirX * fwdX           + dirZ * fwdZ
+    local rgtComp  = dirX * math.cos(yaw)  + dirZ * math.sin(yaw)
 
-    local forwardComp = dirX * forwardX + dirZ * forwardZ
-    local rightComp   = dirX * rightX   + dirZ * rightZ
+    local speedH   = math.sqrt(vel.x*vel.x + vel.z*vel.z)
+    local latMult  = speedH > 0.2 and 0.5 or 1.0
 
-    local speedH = math.sqrt(vel.x * vel.x + vel.z * vel.z)
-    local lateralCorrectionMult = (speedH > 0.2) and 0.5 or 1.0
+    player.input.setPressedForward(fwdComp >  0.2)
+    player.input.setPressedBack   (fwdComp < -0.3)
+    player.input.setPressedLeft   (rgtComp >  0.3 * latMult)
+    player.input.setPressedRight  (rgtComp < -0.3 * latMult)
 
-    player.input.setPressedForward(forwardComp > 0.2)
-    player.input.setPressedBack(forwardComp < -0.3)
-    player.input.setPressedLeft(rightComp > (0.3 * lateralCorrectionMult))
-    player.input.setPressedRight(rightComp < (-0.3 * lateralCorrectionMult))
+    -- ── Sprint ────────────────────────────────────────────────
+    player.input.setPressedSprinting(
+        Walker.sprintEnabled
+        and not isOnLadder()
+        and fwdComp > Walker.sprintForwardMin
+        and hDist   > Walker.sprintDistMin
+    )
 
-    if Walker.sprintEnabled then
-        local shouldSprint = false
-        if sprintHolding then
-            shouldSprint = (forwardComp > Walker.sprintKeepForward and horizontalDist > Walker.sprintKeepDistance)
-        else
-            shouldSprint = (forwardComp > Walker.sprintStartForward and horizontalDist > Walker.sprintStartDistance)
-        end
-        if isOnLadder() then shouldSprint = false end
-        setSprintPressed(shouldSprint)
-        sprintHolding = shouldSprint
-    else
-        setSprintPressed(false)
-        sprintHolding = false
-    end
-
-    if needsJump(dirX, dirZ) then
-        player.input.setPressedJump(true)
-    else
-        player.input.setPressedJump(false)
+    -- ── Jump ─────────────────────────────────────────────────
+    if not isInWater() then
+        player.input.setPressedJump(needsJump(dirX, dirZ, hDist))
     end
 end)
 
-aim.setModifier(7)
-
-function Walker.isComplete()
-    return Walker.complete
-end
-
+aim.setModifier(2)
 
 register2DRenderer(function()
-    if Walker.active and Walker.lookAtPath then
-        aim.update()
-
-        local lookIndex = math.min(currentIndex + Walker.lookAhead, #waypoints)
-        local lookat = waypoints[lookIndex]
-
-        if lookat then
-            aim.rotateToCoordinates(lookat.x + 0.5, lookat.y + 1.6, lookat.z + 0.5)
-        end
+    if not Walker.active or not Walker.lookAtPath then return end
+    aim.update()
+    local li = math.min(currentIndex + Walker.lookAhead, #waypoints)
+    local wp = waypoints[li]
+    if wp then
+        aim.rotateToCoordinates(wp.x+0.5, wp.y+1.6, wp.z+0.5)
     end
 end)
 
