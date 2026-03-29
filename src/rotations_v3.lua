@@ -1,7 +1,8 @@
 -- @version 1.0.0-final
 -- @location /libs/ 
 
-
+local player = require("player")
+local world = require("world")
 local utils = require("smarrtieUtils")
 
 local SmoothRotation = {}
@@ -129,7 +130,7 @@ function SmoothRotation.update()
     local deltaTime = utils.deltaTime()
     SmoothRotation.setRotationSpeed((100*deltaTime)*modifier)
     local currentRot = player.getRotation()
-    local currentYawRot = currentRot.yaw or currentRot
+    local currentYawRot = currentRot.yaw or 0
     local currentPitchRot = currentRot.pitch or 0
     
     local yawDiff = (targetYaw - currentYawRot + 180) % 360 - 180
@@ -225,8 +226,5 @@ function SmoothRotation.getProgress()
     return math.max(0, math.min(1, 1 - (totalDiff / math.max(initialTotalDiff, 0.1))))
 end
 
-function math.sign(x)
-    return x > 0 and 1 or x < 0 and -1 or 0
-end
 
 return SmoothRotation

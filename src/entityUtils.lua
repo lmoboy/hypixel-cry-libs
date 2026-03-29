@@ -1,14 +1,26 @@
--- @version 0.1.4
+-- @version 0.1.2
 -- @location /libs/
--- author: smarrtie
+-- @author smarrtie
 
+local player = require("player")
+local world = require("world")
+
+---@class EntityUtils
+---@field reach number The reach distance for entity interactions
+---@field closest table|nil The closest entity found
+---@field steps number Number of raycast steps for hitbox checking (higher = more accurate but slower)
+---@field filter table Keyed map of entities to filter out
+
+---@type EntityUtils
 local entityUtils = {}
 entityUtils.reach = 3.5 -- this one for later useage when i update the lib
 entityUtils.closest = nil -- you can set this closest global instead of declaring a new variable
 entityUtils.steps = 5 -- increasing this WILL make it look for more points BUT it comes at a price of performance, 3 is enough 4 is good 5 is preferred
 entityUtils.filter = { [player.entity] = false } -- keyed map to filder entities out (for example bots or npcs)
 
----@return boolean returns TRUE if entity is in the files
+---Check if an entity is in the filter list
+---@param entity table The entity to check
+---@return boolean returns TRUE if entity is in the filter
 function entityUtils.filterEntity(entity)
     if entity and entityUtils.filter[entity] then
         return true
@@ -16,18 +28,25 @@ function entityUtils.filterEntity(entity)
     return false
 end
 
+---Add an entity to the filter list
+---@param entity table The entity to add to filter
 function entityUtils.addToFilter(entity)
     if entity then
         entityUtils.filter[entity] = true
     end
 end
 
+---Remove an entity from the filter list
+---@param entity table The entity to remove from filter
 function entityUtils.removeFromFilter(entity)
     if entity then
         entityUtils.filter[entity] = false
     end
 end
 
+---Get all entities matching a name
+---@param name string The name to search for (case-insensitive partial match)
+---@return table Array of matching entities
 function entityUtils.getEntitiesByName(name)
     local entities = world.getEntities()
     local scanResult = {}
@@ -39,6 +58,8 @@ function entityUtils.getEntitiesByName(name)
     return scanResult
 end
 
+---Get the closest valid entity to the player
+---@return table|nil The closest entity, or nil if none found
 function entityUtils.getClosestEntity()
     local closest = nil
     local entities = world.getEntities()
@@ -65,6 +86,8 @@ function entityUtils.getClosestEntity()
     return closest
 end
 
+---Get the closest living entity to the player
+---@return table|nil The closest living entity, or nil if none found
 function entityUtils.getClosestLivingEntity()
     local closest = nil
     local entities = world.getLivingEntities()
@@ -77,7 +100,7 @@ function entityUtils.getClosestLivingEntity()
                 and entity.box.maxX > entity.box.minX
                 and entity.box.maxY > entity.box.minY
                 and entity.box.maxZ > entity.box.minZ
-
+            -- if entity.name:find("armor_stand") then return end
             if entity.distance_to_player ~= 0
                 and entity.health and entity.health > 0
                 and hasValidBox then
@@ -145,6 +168,9 @@ local function getBoxRays(box)
     return closestPoint
 end
 
+---Get the closest visible point on an entity's hitbox using raycasting
+---@param entity table The entity to check
+---@return table|nil Position {x, y, z} of the closest visible hitbox point, or nil
 function entityUtils.getClosestHitbox(entity)
     if not entity or not entity.box then
         return nil

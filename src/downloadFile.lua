@@ -2,6 +2,7 @@
 -- @location /libs/
 
 local files = require("files")
+local http = require("http")
 local downloadFile = {}
 
 --- Downloads a file from a URL and saves it to a local path.
