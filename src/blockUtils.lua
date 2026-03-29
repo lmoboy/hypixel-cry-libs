@@ -1,11 +1,32 @@
--- @version 0.1.2
+-- @version 0.1.1
 -- @location /libs/
--- author: smarrtie
+-- @author smarrtie
+-- @description Block utility library for finding, filtering, and interacting with Minecraft blocks
 
+local player = require("player")
+local world = require("world")
+local smarrtieUtils = require("smarrtieUtils")
+
+---@class BlockUtils
+---@field reach number The reach distance for block interactions
+---@field closest table|nil The closest block found
+---@field steps number Number of raycast steps for hitbox checking (higher = more accurate but slower)
+---@field filter table Keyed map of block names to filter (true = include, false = exclude)
+---@field filterBlock function(blockName: string): boolean Check if block should be included
+---@field addToFilter function(blockName: string) Add a block to the include filter
+---@field disableFromFilter function(blockName: string) Remove a block from the include filter
+---@field getDistanceTo function(tx: number, ty: number, tz: number): number Get distance to coordinates
+---@field pseudoChunkScan function(): table Scan nearby blocks within reach
+---@field getClosestBlock function(): table|nil Get closest block within reach
+---@field getClosestRotationBlock function(): table|nil Get closest block that requires minimal rotation
+---@field getClosestBlockSide function(pos: table, block: table): table|nil Get closest point on block hitbox
+---@field getClosestHitbox function(block: table): table|nil Get closest visible hitbox point
+
+---@type BlockUtils
 local blockUtils = {}
-blockUtils.reach = 4
+blockUtils.reach = 3
 blockUtils.closest = nil
-blockUtils.steps = 10
+blockUtils.steps = 4
 blockUtils.filter = {
     ["block.minecraft.air"] = false,
     ["block.minecraft.void_air"] = false,
@@ -21,7 +42,9 @@ blockUtils.filter = {
     ["block.minecraft.light_blue_wool"] = true,
 }
 
----@return boolean
+---Check if a block should be included in scan results
+---@param blockName string The block name to check
+---@return boolean True if block should be included
 function blockUtils.filterBlock(blockName)
     if blockName and blockUtils.filter[blockName] then
         return true
@@ -29,14 +52,23 @@ function blockUtils.filterBlock(blockName)
     return false
 end
 
+---Add a block to the include filter
+---@param blockName string The block name to add
 function blockUtils.addToFilter(blockName)
     if blockName then blockUtils.filter[blockName] = true end
 end
 
+---Remove a block from the include filter
+---@param blockName string The block name to remove
 function blockUtils.disableFromFilter(blockName)
     if blockName then blockUtils.filter[blockName] = false end
 end
 
+---Calculate distance from player eye position to target coordinates
+---@param tx number Target X coordinate
+---@param ty number Target Y coordinate
+---@param tz number Target Z coordinate
+---@return number The distance, or math.huge if player position unavailable
 function blockUtils.getDistanceTo(tx, ty, tz)
     local eyePos = player.getEyePosition()
     if not eyePos then return math.huge end
@@ -44,17 +76,8 @@ function blockUtils.getDistanceTo(tx, ty, tz)
     return math.sqrt(dx^2 + dy^2 + dz^2)
 end
 
-function blockUtils.isVisible(block)
-    local eyePos = player.getEyePosition()
-    if not eyePos then return false end
-    -- local dx, dy, dz = block.pos.x - eyePos.x, block.pos.y - eyePos.y, block.pos.z - eyePos.z
-    -- local distance = math.sqrt(dx^2 + dy^2 + dz^2)
-    -- if distance > blockUtils.reach then return false end
-    -- local ray = Ray.new(eyePos, Vector3.new(dx, dy, dz))
-    local hit = world.raycast({startX=eyePos.x, startY=eyePos.y,startZ=eyePos.z, endX=block.pos.x, endY=block.pos.y})
-    return hit == nil or hit.block == block
-end
-
+---Scan blocks within reach distance and return filtered blocks
+---@return table Array of block data tables with {data, pos}
 function blockUtils.pseudoChunkScan()
     local pPos = player.getPos()
     if pPos == nil then return {} end
@@ -78,6 +101,8 @@ function blockUtils.pseudoChunkScan()
     return scanResult
 end
 
+---Get the closest block that is within reach and visible
+---@return table|nil The closest block data {data, pos}
 function blockUtils.getClosestBlock()
     local closest = nil
     local minPadding = math.huge
@@ -89,12 +114,11 @@ function blockUtils.getClosestBlock()
             local cast = world.raycast(
                 {
                     startX = eyePos.x,
-                    startY = eyePos.y, 
+                    startY = eyePos.y,
                     startZ = eyePos.z,
                 endX=block.pos.x + 0.5,
-                endY=block.pos.y + math.max(-0.9, math.min(eyePos.y-block.pos.y,0.9)),
+                endY=block.pos.y + 0.5,
                 endZ=block.pos.z + 0.5
-            
             })
             local dist = blockUtils.getDistanceTo(block.pos.x + 0.5, block.pos.y + 0.5,
                 block.pos.z + 0.5)
@@ -115,6 +139,8 @@ end
 
 
 
+---Get the closest block that requires minimal rotation to look at
+---@return table|nil Block data {data, pos} closest to current view angle
 function blockUtils.getClosestRotationBlock()
     local pPos = player.getEyePosition()
     if not pPos then return nil end
@@ -136,10 +162,12 @@ function blockUtils.getClosestRotationBlock()
                 local blockData = world.getBlock(tx, ty, tz)
 
                 if blockData and blockUtils.filterBlock(blockData.name) then
+                    -- Aim at center X/Z; clamp Y so pitch stays within ±reach of eye
                     local aimX = tx + 0.5
-                    local aimY = ty + math.max(-0.9, math.min(eyePos.y - ty, 0.9))
+                    local aimY = ty + 0.5
                     local aimZ = tz + 0.5
 
+                    -- Only consider blocks the player can actually hit with a raycast
                     local cast = world.raycast({
                         startX = eyePos.x,
                         startY = eyePos.y,
@@ -293,6 +321,9 @@ function blockUtils.getClosestBlockSide(pos, block)
     return bestPoint
 end
 
+---Get the closest point on a block's hitbox from a position
+---@param block table Block data with position {pos: {x, y, z}}
+---@return table|nil Closest point {x, y, z} on the hitbox
 function blockUtils.getClosestHitbox(block)
     if not block or not block.pos then return nil end
     local blockState = world.getBlock(block.pos.x, block.pos.y, block.pos.z)

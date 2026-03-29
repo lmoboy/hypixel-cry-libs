@@ -1,58 +1,32 @@
--- @version 1.0.1
--- @location /libs/
-
--- This allows you to read and write files to the file system. Note that malicious actions can be taken with this library, use with caution!!
 local File = luajava.bindClass("java.io.File")
 local Files = luajava.bindClass("java.nio.file.Files")
 local Array = luajava.bindClass("java.lang.reflect.Array")
 local StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 local Paths = luajava.bindClass("java.nio.file.Paths")
-local System = luajava.bindClass("java.lang.System")
 local files = {}
 
+--- @param directory string
+--- @return string[]
 function files.getFiles(directory)
-	local filesList = {}
-	local dir = luajava.newInstance("java.io.File", directory)
+    local filesList = {}
+    local dir = luajava.newInstance("java.io.File", directory)
 
-	if dir:exists() and dir:isDirectory() then
-		local filesArray = dir:listFiles()
-		
-		if filesArray ~= nil then
-			local length = Array:getLength(filesArray)
-			for i = 0, length - 1 do
-				local file = Array:get(filesArray, i)
-				table.insert(filesList, file:getName())
-			end
-		end
-	end
-	return filesList
+    if dir:exists() and dir:isDirectory() then
+        local filesArray = dir:listFiles()
+
+        if filesArray ~= nil then
+            local length = Array:getLength(filesArray)
+            for i = 0, length - 1 do
+                local file = Array:get(filesArray, i)
+                table.insert(filesList, file:getName())
+            end
+        end
+    end
+    return filesList
 end
 
-function files.getFileData(filePath)
-    local file = luajava.newInstance("java.io.File", filePath)
-    if not file:exists() then return nil end
-
-    local data = {}
-
-    data.name = file:getName()
-    data.absolutePath = file:getAbsolutePath()
-    data.parent = file:getParent()
-    data.exists = file:exists()
-    data.isFile = file:isFile()
-    data.isDirectory = file:isDirectory()
-    data.isHidden = file:isHidden()
-    data.lastModified = file:lastModified() -- returns long timestamp (divide by 1000 to get epoch time)
-    data.size = file:length() -- in bytes
-
-    -- Permissions
-    data.permissions = {
-        canRead = file:canRead(),
-        canWrite = file:canWrite(),
-        canExecute = file:canExecute()
-    }
-    return data
-end
-
+--- @param directory string
+--- @return string[]
 function files.getDirectories(directory)
     local dirList = {}
     local dir = luajava.newInstance("java.io.File", directory)
@@ -71,12 +45,10 @@ function files.getDirectories(directory)
     return dirList
 end
 
-function files.getInstanceDir()
-    return System:getProperty("user.dir")
-end
-
+--- @param file string
+--- @return string
 function files.readFile(file)
-    local f = io.open(file, "r")
+    local f, err = io.open(file, "r")
     if not f then
         print("Error opening file: " .. (err or "unknown"))
         return nil
@@ -87,6 +59,9 @@ function files.readFile(file)
 end
 
 --- Writes plain text to a file using "w" mode.
+--- @param file string
+--- @param text string
+--- @return boolean status
 function files.writeFile(file, text)
     local f, err = io.open(file, "w")
     if not f then
@@ -100,6 +75,9 @@ end
 
 --- Writes binary data to a file using "wb" mode.
 -- Handles both Lua strings and tables (byte arrays).
+--- @param file string
+--- @param data number[]
+--- @return boolean status
 function files.writeBinaryFile(file, data)
     local f, err = io.open(file, "wb")
     if not f then
@@ -117,7 +95,7 @@ function files.writeBinaryFile(file, data)
                 if b < 0 then b = b + 256 end
                 table.insert(parts, string.char(b))
             end
-            
+
             -- Write in chunks of 4096 bytes to be memory efficient
             if i % 4096 == 0 then
                 f:write(table.concat(parts))
@@ -134,6 +112,8 @@ function files.writeBinaryFile(file, data)
     return true
 end
 
+--- @param filePath string
+--- @return boolean status
 function files.deleteFile(filePath)
     local file = luajava.newInstance("java.io.File", filePath)
     if file:exists() and file:isFile() then
@@ -144,6 +124,8 @@ function files.deleteFile(filePath)
     end
 end
 
+--- @param filePath string
+--- @return boolean status
 function files.deleteDirectory(filePath)
     local file = luajava.newInstance("java.io.File", filePath)
     if file:exists() and file:isDirectory() then
@@ -154,6 +136,8 @@ function files.deleteDirectory(filePath)
     end
 end
 
+--- @param directoryPath string
+--- @return boolean status
 function files.deleteDirectoryRecursive(directoryPath)
     local dir = luajava.newInstance("java.io.File", directoryPath)
     if not dir:exists() then

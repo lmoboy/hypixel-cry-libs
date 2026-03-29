@@ -1,6 +1,20 @@
--- @version beta-0.5
+-- @version beta-0.7
 -- @location /libs/
 
+
+---@class Core
+---@field maxNodes number Maximum nodes to explore before returning partial path
+---@field jumpHeight number Maximum jump height
+---@field smoothPath boolean Whether to smooth the generated path
+---@field fallDepth number Maximum fall distance to consider
+---@field queuedPaths table Queued paths waiting to be processed
+---@field debugCapture boolean Whether to capture debug info
+---@field _debugExpanded table Debug: expanded nodes
+---@field _debugOpen table Debug: open set nodes
+local Core = {}
+local player = require("player")
+local world = require("world")
+local threads = require("threads")
 local Core = {}
 
 Core.maxNodes = 50000 -- haha memory leak go KABOOM<KABLOW<R.I.P MY GRANNY SHE GOT HIT BY A BAZOOKA<YEAH I THINK ABOUT HER EVERY TIME I HIT THE HOOKAH<KABLOW<KABOOM<KABLOW
@@ -29,6 +43,7 @@ end
 
 local function isLadder(x,y,z)
     local block = world.getBlock(x, y, z).name
+    if not block then return false end
     if string.match(block, "ladder") then
         return true
     end
@@ -44,6 +59,11 @@ local function heuristic(ax, ay, az, bx, by, bz)
     return ((hi - lo) + lo * 1.4142 + dy) * 0.8
 end
 
+---Gets the maximum Y collision height at given coordinates
+---@param x number
+---@param y number
+---@param z number
+---@return number
 function Core.getMaxYCollision(x,y,z)
     local blockState = world.getBlock(x,y,z)
     local maxY = 0
@@ -63,24 +83,21 @@ local function isWalkable(bx, by, bz)
     local gnd  = world.getBlock(bx, by - 1, bz)
     local foot = world.getBlock(bx, by,     bz)
     local head = world.getBlock(bx, by + 1, bz)
-    local hair = world.getBlock(bx, by + 2, bz)
-    
+
     if gnd and gnd.is_solid then
         if Core.getMaxYCollision(bx, by - 1, bz) > 1.0 then
             return false
         end
     end
-    
-  
+
     if isLadder(bx,by,bz) then
         return true
     end
-    
+
     local footCollision = Core.getMaxYCollision(bx, by, bz)
     if footCollision > 0.6 then
         return false
     end
-    if hair and hair.is_solid then return false end
     if head and head.is_solid then return false end
     if Core.getMaxYCollision(bx,by-1,bz) + footCollision > 1 then return false end
     if Core.getMaxYCollision(bx, by + 1, bz) >= 0.5 then return false end
@@ -120,9 +137,6 @@ local function resolveY(cx, cy, cz, nx, nz)
 
     for d = 0, Core.fallDepth do
         local targetY = cy - d
-        if debugResolveY then
-            debugResolveY[#debugResolveY + 1] = {x = nx, y = targetY, z = nz}
-        end
 
         if isWalkable(nx, targetY, nz) then
             return targetY
@@ -146,16 +160,7 @@ local function resolveY(cx, cy, cz, nx, nz)
 
     return nil
 end
-function Core.debugViewYResolve(ctx)
-    for i, block in ipairs(debugResolveY) do
-        local filled = {
-            x = block.x, y = block.y, z = block.z,
-            red = 255, green = 0, blue = 0, alpha = 140,
-            through_walls = true
-        }
-        ctx.renderFilled(filled)
-    end
-end
+
 
 local function hasGroundLOS(ax, ay, az, bx, by, bz)
     local dx = bx - ax
@@ -381,15 +386,17 @@ local function astarSearch(start, goal)
         for _, d in ipairs(DIRS) do
             local dx, dz = d[1], d[2]
             local nx, nz = cur.x + dx, cur.z + dz
-
-            if math.abs(dx) + math.abs(dz) == 2 then
-                if not isLadder(cur.x, cur.y, cur.z) then
-                    if isSolid(cur.x + dx, cur.y, cur.z) or isSolid(cur.x, cur.y, cur.z + dz) then
-                        goto next_dir
-                    end
+            
+            local isDiagonal = (math.abs(dx) + math.abs(dz) == 2)
+        
+            if isDiagonal then
+                if isSolid(cur.x + dx, cur.y, cur.z) or isSolid(cur.x, cur.y, cur.z + dz) then
+                    goto next_dir
+                end
+                if isSolid(cur.x + dx, cur.y + 1, cur.z) or isSolid(cur.x, cur.y + 1, cur.z + dz) then
+                    goto next_dir
                 end
             end
-
             local ny = resolveY(cur.x, cur.y, cur.z, nx, nz)
             if ny then
                 local nk = key(nx, ny, nz)
@@ -443,16 +450,10 @@ local function astarSearch(start, goal)
 end
 
 
+---Snaps a position to integer block coordinates
+---@param pos {x:number, y:number, z:number}
+---@return {x:number, y:number, z:number}
 function Core.snapPos(pos)
-    -- local low = pos.y
-    -- local ground = world.raycast({
-    --     startX = pos.x, startY = pos.y, startZ = pos.z,
-    --     endX = pos.x,
-    --     endY = -999,
-    --     endZ = pos.z
-    -- })
-    -- if ground.blockPos.y then low = ground.blockPos.y end
-    -- if player.entity.is_on_ground then low = player.getPos().y end
     return {
         x = math.floor(pos.x),
         y = math.floor(pos.y),
@@ -460,17 +461,23 @@ function Core.snapPos(pos)
     }
 end
 
+---Synchronously searches for a path (blocks main thread)
+---@param start {x:number, y:number, z:number}
+---@param goal {x:number, y:number, z:number}
+---@return table|nil, string|nil
 function Core.search(start, goal)
     return astarSearch(Core.snapPos(start), Core.snapPos(goal))
 end
--- for path searching use this instead, it runs on a diff thread and has all the necessary checks in place
+
+---Asynchronously searches for a path on a separate thread
+---@param goal {x:number, y:number, z:number}
+---@param callback fun(path:table|nil, err:string|nil)
 function Core.findPath(goal, callback)
     if _lock then
         if callback then callback(nil, "search already running") end
         return
     end
     _lock = true
-    
     threads.startThread(function()
         local s = Core.snapPos(player.getPos())
         local g = Core.snapPos(goal)
@@ -485,7 +492,9 @@ function Core.findPath(goal, callback)
         end
     end)
 end
-
+---Queues a path search to run when current search finishes
+---@param goal {x:number, y:number, z:number}
+---@param callback fun(path:table|nil, err:string|nil)
 function Core.queuePath(goal, callback)
     if not _lock then
         Core.findPath(goal, callback)
@@ -494,10 +503,13 @@ function Core.queuePath(goal, callback)
     end
 end
 
+---Clears all queued path searches
 function Core.clearQueue()
     Core.queuedPaths = {}
 end
 
+---Checks if a search is currently running
+---@return boolean
 function Core.isSearching()
     return _lock
 end

@@ -38,7 +38,6 @@ local char, byte, format, rep, sub =
 local bit_or, bit_and, bit_not, bit_xor, bit_rshift, bit_lshift
 
 local ok, bit = pcall(require, 'bit')
-local ok_ffi, ffi = pcall(require, 'ffi')
 if ok then
   bit_or, bit_and, bit_not, bit_xor, bit_rshift, bit_lshift = bit.bor, bit.band, bit.bnot, bit.bxor, bit.rshift, bit.lshift
 else
