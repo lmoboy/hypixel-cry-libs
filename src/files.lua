@@ -1,32 +1,93 @@
+-- @version 1.0.1
+-- @location /libs/
+-- @description File system utility library for reading, writing, and managing files
+-- @warning Malicious actions can be taken with this library, use with caution!!
+
+---@class FileData
+---@field name string File name
+---@field absolutePath string Full path to file
+---@field parent string Parent directory path
+---@field exists boolean Whether file exists
+---@field isFile boolean Whether path is a file
+---@field isDirectory boolean Whether path is a directory
+---@field isHidden boolean Whether file is hidden
+---@field lastModified number Last modified timestamp (divide by 1000 for epoch)
+---@field size number File size in bytes
+---@field permissions table File permission flags
+
+---@class Files
+---@field getFiles function(directory: string): table Get list of files in a directory
+---@field getFileData function(filePath: string): FileData|nil Get detailed file information
+---@field getDirectories function(directory: string): table Get list of subdirectories
+---@field getInstanceDir function(): string Get Minecraft instance directory
+---@field readFile function(file: string): string|nil Read text file contents
+---@field writeFile function(file: string, text: string): boolean Write text to file
+---@field writeBinaryFile function(file: string, data: string|table): boolean Write binary data to file
+---@field deleteFile function(filePath: string): boolean Delete a file
+---@field deleteDirectory function(filePath: string): boolean Delete an empty directory
+---@field deleteDirectoryRecursive function(directoryPath: string): boolean Recursively delete directory and contents
+
+---@type Files
 local File = luajava.bindClass("java.io.File")
 local Files = luajava.bindClass("java.nio.file.Files")
 local Array = luajava.bindClass("java.lang.reflect.Array")
 local StandardCharsets = luajava.bindClass("java.nio.charset.StandardCharsets")
 local Paths = luajava.bindClass("java.nio.file.Paths")
+local System = luajava.bindClass("java.lang.System")
 local files = {}
 
---- @param directory string
---- @return string[]
+---Get list of file names in a directory
+---@param directory string Path to the directory
+---@return table Array of file names
 function files.getFiles(directory)
-    local filesList = {}
-    local dir = luajava.newInstance("java.io.File", directory)
+ 	local filesList = {}
+ 	local dir = luajava.newInstance("java.io.File", directory)
 
-    if dir:exists() and dir:isDirectory() then
-        local filesArray = dir:listFiles()
-
-        if filesArray ~= nil then
-            local length = Array:getLength(filesArray)
-            for i = 0, length - 1 do
-                local file = Array:get(filesArray, i)
-                table.insert(filesList, file:getName())
-            end
-        end
-    end
-    return filesList
+ 	if dir:exists() and dir:isDirectory() then
+ 		local filesArray = dir:listFiles()
+ 		
+ 		if filesArray ~= nil then
+ 			local length = Array:getLength(filesArray)
+ 			for i = 0, length - 1 do
+ 				local file = Array:get(filesArray, i)
+ 				table.insert(filesList, file:getName())
+ 			end
+ 		end
+ 	end
+ 	return filesList
 end
 
---- @param directory string
---- @return string[]
+---Get detailed information about a file
+---@param filePath string Path to the file
+---@return FileData|nil Table containing file data, or nil if file doesn't exist
+function files.getFileData(filePath)
+    local file = luajava.newInstance("java.io.File", filePath)
+    if not file:exists() then return nil end
+
+    local data = {}
+
+    data.name = file:getName()
+    data.absolutePath = file:getAbsolutePath()
+    data.parent = file:getParent()
+    data.exists = file:exists()
+    data.isFile = file:isFile()
+    data.isDirectory = file:isDirectory()
+    data.isHidden = file:isHidden()
+    data.lastModified = file:lastModified() -- returns long timestamp (divide by 1000 to get epoch time)
+    data.size = file:length() -- in bytes
+
+    -- Permissions
+    data.permissions = {
+        canRead = file:canRead(),
+        canWrite = file:canWrite(),
+        canExecute = file:canExecute()
+    }
+    return data
+end
+
+---Get list of subdirectories in a directory
+---@param directory string Path to the directory
+---@return table Array of directory names
 function files.getDirectories(directory)
     local dirList = {}
     local dir = luajava.newInstance("java.io.File", directory)
@@ -45,10 +106,17 @@ function files.getDirectories(directory)
     return dirList
 end
 
---- @param file string
---- @return string
+---Get the Minecraft instance working directory
+---@return string The current working directory path
+function files.getInstanceDir()
+    return System:getProperty("user.dir")
+end
+
+---Read the entire contents of a text file
+---@param file string Path to the file
+---@return string|nil File contents as string, or nil on error
 function files.readFile(file)
-    local f, err = io.open(file, "r")
+    local f = io.open(file, "r")
     if not f then
         print("Error opening file: " .. (err or "unknown"))
         return nil
@@ -58,10 +126,10 @@ function files.readFile(file)
     return content
 end
 
---- Writes plain text to a file using "w" mode.
---- @param file string
---- @param text string
---- @return boolean status
+---Write plain text to a file using "w" mode
+---@param file string Path to the file
+---@param text string Text content to write
+---@return boolean True if successful, false otherwise
 function files.writeFile(file, text)
     local f, err = io.open(file, "w")
     if not f then
@@ -73,11 +141,10 @@ function files.writeFile(file, text)
     return true
 end
 
---- Writes binary data to a file using "wb" mode.
--- Handles both Lua strings and tables (byte arrays).
---- @param file string
---- @param data number[]
---- @return boolean status
+---Write binary data to a file using "wb" mode
+---@param file string Path to the file
+---@param data string|table Binary data to write (string or byte array table)
+---@return boolean True if successful, false otherwise
 function files.writeBinaryFile(file, data)
     local f, err = io.open(file, "wb")
     if not f then
@@ -95,7 +162,7 @@ function files.writeBinaryFile(file, data)
                 if b < 0 then b = b + 256 end
                 table.insert(parts, string.char(b))
             end
-
+            
             -- Write in chunks of 4096 bytes to be memory efficient
             if i % 4096 == 0 then
                 f:write(table.concat(parts))
@@ -112,8 +179,9 @@ function files.writeBinaryFile(file, data)
     return true
 end
 
---- @param filePath string
---- @return boolean status
+---Delete a file
+---@param filePath string Path to the file
+---@return boolean True if deleted, false otherwise
 function files.deleteFile(filePath)
     local file = luajava.newInstance("java.io.File", filePath)
     if file:exists() and file:isFile() then
@@ -124,8 +192,9 @@ function files.deleteFile(filePath)
     end
 end
 
---- @param filePath string
---- @return boolean status
+---Delete an empty directory
+---@param filePath string Path to the directory
+---@return boolean True if deleted, false otherwise
 function files.deleteDirectory(filePath)
     local file = luajava.newInstance("java.io.File", filePath)
     if file:exists() and file:isDirectory() then
@@ -136,8 +205,9 @@ function files.deleteDirectory(filePath)
     end
 end
 
---- @param directoryPath string
---- @return boolean status
+---Recursively delete a directory and all its contents
+---@param directoryPath string Path to the directory
+---@return boolean True if deleted, false otherwise
 function files.deleteDirectoryRecursive(directoryPath)
     local dir = luajava.newInstance("java.io.File", directoryPath)
     if not dir:exists() then
