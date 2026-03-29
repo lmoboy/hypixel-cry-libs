@@ -1,46 +1,10 @@
 {
   "libs": [
     {
-      "name": "rotations_v2.lua",
-      "md5": "1f543dca497f5b5438a40b16ef39806b",
-      "location": "/libs/",
-      "ver": "1.0"
-    },
-    {
-      "name": "downloadFile.lua",
-      "md5": "4296ca760b155ccce1c75d1929ceca92",
-      "location": "/libs/",
-      "ver": "1.0"
-    },
-    {
-      "name": "inventory_utils.lua",
-      "md5": "111f6e43b7037628b58a46d0a6f3c9a5",
-      "location": "/libs/",
-      "ver": "alpha-0.1"
-    },
-    {
       "name": "printColor.lua",
       "md5": "758f82907eab0105988060e5cf0dedb5",
       "location": "/libs/",
       "ver": "1.1.0"
-    },
-    {
-      "name": "files.lua",
-      "md5": "d4d2f62cfb9ce0ab9eeeded3c05aeef9",
-      "location": "/libs/",
-      "ver": "1.0.1"
-    },
-    {
-      "name": "md5.lua",
-      "md5": "5e0926e14fbc89688e9728d0be0a7ae0",
-      "location": "/libs/",
-      "ver": "1.1.0"
-    },
-    {
-      "name": "rotations_v3.lua",
-      "md5": "de306e0468ab4151ed8eb1d2f0a74a1b",
-      "location": "/libs/ ",
-      "ver": "1.0.0-final"
     },
     {
       "name": "goonLog.lua",
@@ -97,40 +61,124 @@
       "ver": "1.2"
     },
     {
-      "name": "blockUtils.lua",
-      "md5": "3d76c21b0085ae1ec0446dc5821d4092",
-      "location": "/libs/",
-      "ver": "0.1.2"
-    },
-    {
-      "name": "entityUtils.lua",
-      "md5": "a7b2734c9c6f6bc66978501963f7b464",
-      "location": "/libs/",
-      "ver": "0.1.4"
-    },
-    {
-      "name": "pathfinder_core.lua",
-      "md5": "e40e0648098063baf9a7ff4807283d6c",
-      "location": "/libs/",
-      "ver": "beta-0.5"
-    },
-    {
-      "name": "smarrtieUtils.lua",
-      "md5": "655a7ef0f73eaad9c6041824a3dcb94f",
-      "location": "/libs/",
-      "ver": "1.0.2"
-    },
-    {
       "name": "pathwalker.lua",
       "md5": "5907809bf5b500e530f2e63b0aa07db2",
       "location": "/libs/",
       "ver": "beta-0.4"
     },
     {
-      "name": "redstone_predictor.lua",
-      "md5": "e76d2bf59c3a964032f152cf2cd24746",
+      "name": "IRender.lua",
+      "md5": "60dc3b3a1ef8181ead3f04ce577b66ca",
+      "location": "/libs",
+      "ver": "1.0.0"
+    },
+    {
+      "name": "bazar_buyer.lua",
+      "md5": "fd7233f520e5c087abf0b4b37ff76de4",
+      "location": "/libs\r",
+      "ver": "1.0.0\r"
+    },
+    {
+      "name": "blockUtils.lua",
+      "md5": "c89a10d1a0c5a131fc2bee35d4c34d01",
+      "location": "/libs/",
+      "ver": "0.1.1"
+    },
+    {
+      "name": "downloadFile.lua",
+      "md5": "d2cd6b02f01c1b84d524900f14792e6f",
+      "location": "/libs/",
+      "ver": "1.0"
+    },
+    {
+      "name": "entityUtils.lua",
+      "md5": "9485e7f66016fa6f3dcff966e831997c",
+      "location": "/libs/",
+      "ver": "0.1.2"
+    },
+    {
+      "name": "files.lua",
+      "md5": "067a41dd5466dbb88ce753bb15abf473",
       "location": "",
       "ver": ""
+    },
+    {
+      "name": "inventory_utils.lua",
+      "md5": "8b0b4beac3c346db1aca2017676dd20e",
+      "location": "",
+      "ver": ""
+    },
+    {
+      "name": "keys.lua",
+      "md5": "92866566337f36e9d879d66e5cf60078",
+      "location": "",
+      "ver": ""
+    },
+    {
+      "name": "md5.lua",
+      "md5": "de4983f9b63cd1f2161465586b6c03c1",
+      "location": "/libs/",
+      "ver": "1.1.0"
+    },
+    {
+      "name": "movement.lua",
+      "md5": "5ddaf0aeeffbc6ddb6aecf2371cd8075",
+      "location": "/libs\r",
+      "ver": "1.0.0\r"
+    },
+    {
+      "name": "pathfinder_core.lua",
+      "md5": "f101b19fc0a0e2e93311b0a69d9364d0",
+      "location": "/libs/",
+      "ver": "beta-0.7"
+    },
+    {
+      "name": "pet_switcher.lua.lua",
+      "md5": "d647b966b0d079205ded682c9aabeb76",
+      "location": "/libs\r",
+      "ver": "1.0.0\r"
+    },
+    {
+      "name": "redstone_predictor.lua",
+      "md5": "0b9f00245777d3c6c3464f948f492a8a",
+      "location": "/libs",
+      "ver": "1.0.0"
+    },
+    {
+      "name": "rotations_v2.lua",
+      "md5": "925cb35745c107803fa4b25767506230",
+      "location": "/libs/\r",
+      "ver": "1.0\r"
+    },
+    {
+      "name": "rotations_v3.lua",
+      "md5": "2ae3536d449c3d2dae20192b510432aa",
+      "location": "/libs/ ",
+      "ver": "1.0.0-final"
+    },
+    {
+      "name": "sell_all.lua",
+      "md5": "fdc72d8e52db5abfed84f286b03c26c6",
+      "location": "",
+      "ver": ""
+    },
+    {
+      "name": "smarrtieUtils.lua",
+      "md5": "60485c037c1674cb2cabfd9a667b6f30",
+      "location": "/libs/",
+      "ver": "1.0.1"
+    },
+    {
+      "name": "tween.lua",
+      "md5": "6f79b0d624eebcef05f93e8ef4fe4f91",
+      "location": "/libs",
+      "ver": "2.1.1"
+    },
+    {
+      "name": "widgets.lua",
+      "md5": "897a2828246829a97155fefd9a9c5348",
+      "location": "/libs/",
+      "ver": "1.1"
     }
   ]
 }
