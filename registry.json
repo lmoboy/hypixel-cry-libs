@@ -97,12 +97,6 @@
       "ver": "0.1.2"
     },
     {
-      "name": "files.lua",
-      "md5": "067a41dd5466dbb88ce753bb15abf473",
-      "location": "",
-      "ver": ""
-    },
-    {
       "name": "inventory_utils.lua",
       "md5": "8b0b4beac3c346db1aca2017676dd20e",
       "location": "",
@@ -179,6 +173,12 @@
       "md5": "897a2828246829a97155fefd9a9c5348",
       "location": "/libs/",
       "ver": "1.1"
+    },
+    {
+      "name": "files.lua",
+      "md5": "8019304c2580c4a5c3b9d4b2c1c1ac88",
+      "location": "/libs/\r",
+      "ver": "1.0.1\r"
     }
   ]
 }
